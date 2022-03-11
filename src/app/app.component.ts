@@ -128,7 +128,7 @@ export class AppComponent {
   }
 
   /** 将文本内容拆分成一个 CharObject 数组 */
-  private contentToCharObject(
+  private splitCharString(
     lines: string[],
     textContext: CanvasRenderingContext2D
   ): CharObject[] {
@@ -215,23 +215,40 @@ export class AppComponent {
       const textCanvasElement = this.textCanvasRef.nativeElement;
       const textContext = textCanvasElement.getContext('2d');
       if (textContext) {
-        textContext.clearRect(0, 0, this.scaledWidth, this.scaledHeight);
         textContext.fillStyle = this.textColor;
         textContext.font = `${this.defaultFontSize * this.scaleRatio}px ${
           this.defaultFontFamily
         }`;
 
-        const charObjs: CharObject[] = this.contentToCharObject(
-          this.splitLineToLines(content, this.defaultLineFeed),
+        this.displayCharObjects(
+          this.textContentToCharObjects(content, textContext),
           textContext
         );
-
-        this.calculateCharObjectGeometry(charObjs);
-
-        for (const char of charObjs) {
-          textContext.fillText(char.content, char.x, char.y);
-        }
       }
+    }
+  }
+
+  private textContentToCharObjects(
+    content: string,
+    context: CanvasRenderingContext2D
+  ): CharObject[] {
+    const charObjs: CharObject[] = this.splitCharString(
+      this.splitLineToLines(content, this.defaultLineFeed),
+      context
+    );
+
+    this.calculateCharObjectGeometry(charObjs);
+
+    return charObjs;
+  }
+
+  private displayCharObjects(
+    charObjs: CharObject[],
+    textContext: CanvasRenderingContext2D
+  ): void {
+    textContext.clearRect(0, 0, this.scaledWidth, this.scaledHeight);
+    for (const char of charObjs) {
+      textContext.fillText(char.content, char.x, char.y);
     }
   }
 
@@ -294,19 +311,20 @@ export class AppComponent {
     });
 
     this.modeForm.valueChanges.subscribe((mode) => {
-      this.wordWrap = !!(mode.wordWrap);
-
-    })
-
-    this.httpClient.get('/assets/example-code.c', { responseType: 'text' }).subscribe(code => {
-      this.inputTextCtrl.setValue(code);
+      this.wordWrap = !!mode.wordWrap;
     });
+
+    this.httpClient
+      .get('/assets/example-code.c', { responseType: 'text' })
+      .subscribe((code) => {
+        this.inputTextCtrl.setValue(code);
+      });
 
     this.modeForm.valueChanges.subscribe(({ wordWrap }) => {
       if (typeof this.inputTextCtrl.value === 'string') {
         this.displayText(this.inputTextCtrl.value);
       }
-    })
+    });
   }
 
   handleClick(event: Event, element: HTMLElement): void {
