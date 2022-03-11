@@ -210,6 +210,7 @@ export class AppComponent {
     }
   }
 
+  /** 在 canvas 上显示一段文字 */
   private displayText(content: string): void {
     if (this.textCanvasRef) {
       const textCanvasElement = this.textCanvasRef.nativeElement;
@@ -228,6 +229,7 @@ export class AppComponent {
     }
   }
 
+  /** 将一段文字转换成带几何信息的 CharObject[] */
   private textContentToCharObjects(
     content: string,
     context: CanvasRenderingContext2D
@@ -242,6 +244,7 @@ export class AppComponent {
     return charObjs;
   }
 
+  /** 将 CharObject[] 在 canvas 上渲染出来 */
   private displayCharObjects(
     charObjs: CharObject[],
     textContext: CanvasRenderingContext2D
@@ -252,6 +255,7 @@ export class AppComponent {
     }
   }
 
+  /** 在背景 canvas 上展示背景颜色 */
   private paintBackground(): void {
     if (this.backgroundCanvasRef) {
       const canvasElement = this.backgroundCanvasRef.nativeElement;
@@ -265,35 +269,44 @@ export class AppComponent {
     }
   }
 
+  /** 视图初始化之后 */
   ngAfterViewInit(): void {
     if (this.pseudoTerminalRef) {
+      // 三个重叠 canvas 元素的直接容器
       const div = this.pseudoTerminalRef.nativeElement;
+
+      // 三个重叠 canvas 元素的直接容器的 box
       const box = div.getBoundingClientRect();
+
+      // 获取 devicePixelRatio
       const ratio = window.devicePixelRatio || 1;
       this.scaleRatio = ratio;
+
+      // 获取 DOM 容器的 width, height
       const originWidth = box.width;
       const originHeight = box.height;
+
+      // 乘以 scaleFactor
       const scaledWidth = originWidth * ratio;
       const scaledHeight = originHeight * ratio;
+
+      // 获取 scaledHeight, scaledWidth, 记录 originHeight, originWidth
       this.scaledHeight = scaledHeight;
       this.scaledWidth = scaledWidth;
       this.originWidth = originWidth;
       this.originHeight = originHeight;
 
+      // 设置每个 canvas 元素的宽和高
       const canvasLayers: HTMLCanvasElement[] = [];
-
       if (this.backgroundCanvasRef) {
         canvasLayers.push(this.backgroundCanvasRef.nativeElement);
       }
-
       if (this.textCanvasRef) {
         canvasLayers.push(this.textCanvasRef.nativeElement);
       }
-
       if (this.cursorRef) {
         canvasLayers.push(this.cursorRef.nativeElement);
       }
-
       for (const layer of canvasLayers) {
         layer.width = scaledWidth;
         layer.height = scaledHeight;
@@ -302,29 +315,33 @@ export class AppComponent {
       }
     }
 
+    // 在背景图层画背景颜色
     this.paintBackground();
 
+    // 定义 inputTextCtrl 的状态到文字展示层 canvas 的单项同步
     this.inputTextCtrl.valueChanges.subscribe((content) => {
       if (typeof content === 'string') {
         this.displayText(content);
       }
     });
 
-    this.modeForm.valueChanges.subscribe((mode) => {
-      this.wordWrap = !!mode.wordWrap;
+    // 定义 wordWrap 选项表单控件的状态到本地变量的单向同步
+    // 并且在每次这样的更新发生时，在文字层做一次重新绘制
+    this.modeForm.valueChanges.subscribe(({ wordWrap }) => {
+      this.wordWrap = !!wordWrap;
+
+      if (typeof this.inputTextCtrl.value === 'string') {
+        this.displayText(this.inputTextCtrl.value);
+      }
     });
 
+    // 拉去示例文本型文件，加载到 inputTextCtrl 中
+    // inputTextCtrl 上定义的状态同步逻辑会自动将这段文字展示到 canvas 上
     this.httpClient
       .get('/assets/example-code.c', { responseType: 'text' })
       .subscribe((code) => {
         this.inputTextCtrl.setValue(code);
       });
-
-    this.modeForm.valueChanges.subscribe(({ wordWrap }) => {
-      if (typeof this.inputTextCtrl.value === 'string') {
-        this.displayText(this.inputTextCtrl.value);
-      }
-    });
   }
 
   handleClick(event: Event, element: HTMLElement): void {
