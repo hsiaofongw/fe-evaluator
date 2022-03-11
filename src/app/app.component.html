@@ -1,9 +1,20 @@
 <div>
-  <textarea placeholder="请输入文字" [formControl]="inputTextCtrl"></textarea>
+  <textarea [style]="{ width: '300px', height: '200px' }" placeholder="请输入文字" [formControl]="inputTextCtrl"></textarea>
+</div>
+<div>
+<form>
+  <p>WordWrap 选项：</p>
+  <div [formGroup]="modeForm">
+    <input id="true-opt" [value]="true" name="wordWrap" type="radio"  [formControl]="wordWrapCtrl">
+    <label for="true-opt">是</label>
+    <input id="false-opt" [value]="false" name="wordWrap" type="radio"[formControl]="wordWrapCtrl">
+    <label for="false-opt">否</label>
+  </div>
+</form>
 </div>
 <div class="screen-container">
   <div class="pseudo-terminal-container">
-    <div class="pseudo-terminal" #pseudoTerminalRef >
+    <div class="pseudo-terminal" #pseudoTerminalRef (click)="handleClick($event, pseudoTerminalRef)">
       <canvas class="canvas" #backgroundCanvasRef></canvas>
       <canvas class="canvas" #textCanvasRef></canvas>
       <canvas class="canvas" #cursorRef></canvas>

@@ -1,3 +1,4 @@
+import { HttpClient } from '@angular/common/http';
 import {
   Component,
   Directive,
@@ -5,7 +6,7 @@ import {
   ViewChild,
   ViewContainerRef,
 } from '@angular/core';
-import { FormControl } from '@angular/forms';
+import { FormControl, FormGroup } from '@angular/forms';
 import { from, interval, of } from 'rxjs';
 import { delay, delayWhen, sample } from 'rxjs/operators';
 
@@ -88,7 +89,6 @@ export class AppComponent {
   defaultLineFeed: LineFeed = 'LF';
   firstLinePaddingTop = 10;
   wordWrap = false;
-  wordWrapWidth = 0;
   originWidth = 0;
   originHeight = 0;
   scaledWidth = 0;
@@ -105,6 +105,12 @@ export class AppComponent {
   cursorRef?: ElementRef<HTMLCanvasElement>;
 
   inputTextCtrl = new FormControl(null);
+  wordWrapCtrl = new FormControl(false);
+  modeForm = new FormGroup({
+    wordWrap: this.wordWrapCtrl,
+  });
+
+  constructor(private httpClient: HttpClient) {}
 
   /** 将文字拆分成逻辑行 */
   private splitLineToLines(line: string, lineFeed: LineFeed): string[] {
@@ -172,7 +178,11 @@ export class AppComponent {
     // firtChar.x = 0 - firtChar.dimension.actualBoundingBoxLeft;
     firtChar.x = this.linePaddingLeft;
 
-    function charNewLine(char: CharObject, prevChar: CharObject, lineHeightFactor: number): void {
+    function charNewLine(
+      char: CharObject,
+      prevChar: CharObject,
+      lineHeightFactor: number
+    ): void {
       char.x = firtChar.x;
       char.y = prevChar.y + lineHeightFactor * (prevChar.maxY - prevChar.minY);
       char.displayLineNumber = prevChar.displayLineNumber + 1;
@@ -187,8 +197,10 @@ export class AppComponent {
 
       if (prevChar.lineNumber < char.lineNumber) {
         charNewLine(char, prevChar, char.lineNumber - prevChar.lineNumber);
-      }
-      else if (this.wordWrap && char.x + char.dimension.width > this.wordWrapWidth) {
+      } else if (
+        this.wordWrap &&
+        char.x + char.dimension.width > this.scaledWidth
+      ) {
         charNewLine(char, prevChar, 1);
       } else {
         char.y = prevChar.y;
@@ -246,7 +258,6 @@ export class AppComponent {
       const originHeight = box.height;
       const scaledWidth = originWidth * ratio;
       const scaledHeight = originHeight * ratio;
-      this.wordWrapWidth = originWidth;
       this.scaledHeight = scaledHeight;
       this.scaledWidth = scaledWidth;
       this.originWidth = originWidth;
@@ -276,10 +287,31 @@ export class AppComponent {
 
     this.paintBackground();
 
-    this.inputTextCtrl.valueChanges.subscribe(content => {
+    this.inputTextCtrl.valueChanges.subscribe((content) => {
       if (typeof content === 'string') {
         this.displayText(content);
       }
+    });
+
+    this.modeForm.valueChanges.subscribe((mode) => {
+      this.wordWrap = !!(mode.wordWrap);
+
     })
+
+    this.httpClient.get('/assets/example-code.c', { responseType: 'text' }).subscribe(code => {
+      this.inputTextCtrl.setValue(code);
+    });
+
+    this.modeForm.valueChanges.subscribe(({ wordWrap }) => {
+      if (typeof this.inputTextCtrl.value === 'string') {
+        this.displayText(this.inputTextCtrl.value);
+      }
+    })
+  }
+
+  handleClick(event: Event, element: HTMLElement): void {
+    const x = (event as MouseEvent).offsetX;
+    const y = (event as MouseEvent).offsetY;
+    console.log({ x, y });
   }
 }
