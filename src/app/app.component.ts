@@ -348,9 +348,15 @@ export class AppComponent {
     // 并且在每次这样的更新发生时，在文字层做一次重新绘制
     this.modeForm.valueChanges.subscribe(({ wordWrap }) => {
       this.wordWrap = !!wordWrap;
+      this.clearCursor();
 
       if (typeof this.inputTextCtrl.value === 'string') {
         this.displayText(this.inputTextCtrl.value);
+
+        if (this.currentHighlightCharIdx) {
+          const char = this.lastPrintCharObjects[this.currentHighlightCharIdx];
+          this.strokeCharCursor(char);
+        }
       }
     });
 
@@ -363,7 +369,8 @@ export class AppComponent {
       });
   }
 
-  handleClick(event: Event, element: HTMLElement): void {
+  /** 响应鼠标点击事件 */
+  handleClick(event: Event): void {
     const x = (event as MouseEvent).offsetX;
     const y = (event as MouseEvent).offsetY;
     this.currentHighlightCharIdx = undefined;
@@ -371,17 +378,19 @@ export class AppComponent {
     this.clearCursor();
     if (charQuery) {
       console.log(charQuery.char);
-      this.fillChar(charQuery.char);
+      this.strokeCharCursor(charQuery.char);
       this.currentHighlightCharIdx = charQuery.idx;
     }
   }
 
-  private fillChar(charObj: CharObject): void {
+  /** 在指定的 CharObj 处绘制 cursor */
+  private strokeCharCursor(charObj: CharObject): void {
     const context = this.getCursorContext();
     if (context) {
       const edge = this.getCharEdge(charObj);
       context.globalCompositeOperation = 'copy';
-      context.fillStyle = this.cursorColor;
+      context.lineWidth = 6;
+      context.strokeStyle = this.cursorColor;
       context.beginPath();
       context.moveTo(edge.minX, edge.maxY);
       context.lineTo(edge.maxX, edge.maxY);
@@ -389,10 +398,11 @@ export class AppComponent {
       context.lineTo(edge.minX, edge.minY);
       context.lineTo(edge.minX, edge.maxY);
       context.closePath();
-      context.fill();
+      context.stroke();
     }
   }
 
+  /** 清除 cursor 图层的内容 */
   private clearCursor(): void {
     const context = this.getCursorContext();
     if (context) {
@@ -400,6 +410,7 @@ export class AppComponent {
     }
   }
 
+  /** 获取 cursor 图层 canvas 元素的 Canvas 2D Context */
   private getCursorContext(): CanvasRenderingContext2D | undefined {
     if (this.cursorRef) {
       const ctx = this.cursorRef.nativeElement.getContext('2d');
@@ -411,6 +422,7 @@ export class AppComponent {
     return undefined;
   }
 
+  /** 给定一组坐标 (x, y)，寻找距离此坐标最近的 CharObj */
   private findCharObj(
     x: number,
     y: number,
@@ -427,6 +439,7 @@ export class AppComponent {
     return undefined;
   }
 
+  /** 给定一组坐标 (x, y), 判断该点是否是在一个 CharEdge 矩形域内 */
   private coordInCharEdge(x: number, y: number, charEdge: CharEdge): boolean {
     if (
       x <= charEdge.maxX &&
@@ -440,6 +453,7 @@ export class AppComponent {
     return false;
   }
 
+  /** 获取一个 CharEdge 的矩形域 */
   private getCharEdge(charObj: CharObject): CharEdge {
     // const minX = charObj.x + (charObj.dimension as any).actualBoundingBoxLeft;
     const minX = charObj.x;
