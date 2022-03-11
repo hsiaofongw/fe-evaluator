@@ -486,15 +486,32 @@ export class AppComponent {
     y: number,
     chars: CharObject[]
   ): { idx: number; char: CharObject } | undefined {
+    const findByYRange: { idx: number; char: CharObject }[] = [];
     for (let idx = 0; idx < chars.length; idx++) {
       const char = chars[idx];
       const charEdge = this.getCharEdge(char);
-      if (this.coordInCharEdge(x, y, charEdge)) {
+
+      if (y >= charEdge.minY && y <= charEdge.maxY) {
+        findByYRange.push({ idx, char });
+      }
+    }
+
+    if (findByYRange.length === 0) {
+      return undefined;
+    }
+
+    for (let i = 0; i < findByYRange.length; i++) {
+      const char = findByYRange[i].char;
+      const idx = findByYRange[i].idx;
+      const charEdge = this.getCharEdge(char);
+
+      if (x >= charEdge.minX && x <= charEdge.maxX) {
         return { idx, char };
       }
     }
 
-    return undefined;
+    findByYRange.sort((a, b) => b.char.x - a.char.x);
+    return findByYRange[0];
   }
 
   /** 给定一组坐标 (x, y), 判断该点是否是在一个 CharEdge 矩形域内 */
