@@ -51,6 +51,12 @@ type CharObject = {
 
   /** 实际显示行号，当 word-wrap 处于开启时，displayLineNumber >= lineNumber 恒成立 */
   displayLineNumber: number;
+
+  /** 在原字符串中的位置 */
+  offsetToFileStart: number;
+
+  /** 在所在行中的位置 */
+  offsetToLineStart: number;
 };
 
 @Component({
@@ -113,18 +119,22 @@ export class AppComponent {
   constructor(private httpClient: HttpClient) {}
 
   /** 将文字拆分成逻辑行 */
-  private splitLineToLines(line: string, lineFeed: LineFeed): string[] {
+  private splitLineToLines(line: string, ): string[] {
     if (line.length === 0) {
       return [];
     }
 
-    if (lineFeed === 'CR') {
-      return line.split('\r');
-    } else if (lineFeed === 'CRLF') {
-      return line.split('\r\n');
-    } else {
-      return line.split('\n');
-    }
+    return line.split(this.getLineFeedContent());
+  }
+
+  private getLineFeedContent(): string {
+    const lfMap: Record<LineFeed, string> = {
+      'CR': '\r',
+      'CRLF': '\r\n',
+      'LF': '\n',
+    };
+
+    return lfMap[this.defaultLineFeed];
   }
 
   /** 将文本内容拆分成一个 CharObject 数组 */
@@ -133,10 +143,12 @@ export class AppComponent {
     textContext: CanvasRenderingContext2D
   ): CharObject[] {
     const charObjs: CharObject[] = [];
+    let globalOffset = 0;
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const content = lines[lineIdx];
 
-      for (const char of content) {
+      for (let lineOffset = 0; lineOffset < content.length; lineOffset++) {
+        const char = content[lineOffset];
         const metric = textContext.measureText(char);
         const charObj: CharObject = {
           content: char,
@@ -149,13 +161,19 @@ export class AppComponent {
           maxY: 0,
           lineNumber: lineIdx,
           displayLineNumber: lineIdx,
+          offsetToFileStart: globalOffset,
+          offsetToLineStart: lineOffset,
         };
 
         charObj.minY = charObj.y - charObj.boxAscent;
         charObj.maxY = charObj.y + charObj.boxDescent;
 
         charObjs.push(charObj);
+        globalOffset = globalOffset + 1;
       }
+
+      globalOffset = globalOffset - 1;
+      globalOffset = globalOffset + this.getLineFeedContent().length;
     }
 
     return charObjs;
@@ -174,6 +192,7 @@ export class AppComponent {
     const disp = topEdge - firtChar.minY;
     firtChar.y = firtChar.y + disp;
     firtChar.maxY = firtChar.maxY + disp;
+    firtChar.minY = firtChar.minY + disp;
     // 然后把第一个字平移到第一列
     // firtChar.x = 0 - firtChar.dimension.actualBoundingBoxLeft;
     firtChar.x = this.linePaddingLeft;
@@ -184,8 +203,11 @@ export class AppComponent {
       lineHeightFactor: number
     ): void {
       char.x = firtChar.x;
-      char.y = prevChar.y + lineHeightFactor * (prevChar.maxY - prevChar.minY);
-      char.displayLineNumber = prevChar.displayLineNumber + 1;
+      const vDisp = lineHeightFactor * (prevChar.maxY - prevChar.minY);
+      char.y = prevChar.y + vDisp;
+      char.minY = prevChar.minY + vDisp;
+      char.maxY = prevChar.maxY + vDisp;
+      char.displayLineNumber = prevChar.displayLineNumber + lineHeightFactor;
     }
 
     // 计算每一个 char 的 x 和 y 并且处理 word-wrap 和换行的情形
@@ -194,6 +216,9 @@ export class AppComponent {
       const char = charObjs[i];
 
       char.x = prevChar.x + prevChar.dimension.width;
+      char.y = prevChar.y;
+      char.minY = prevChar.minY;
+      char.maxY = prevChar.maxY;
 
       if (prevChar.lineNumber < char.lineNumber) {
         charNewLine(char, prevChar, char.lineNumber - prevChar.lineNumber);
@@ -202,9 +227,7 @@ export class AppComponent {
         char.x + char.dimension.width > this.scaledWidth
       ) {
         charNewLine(char, prevChar, 1);
-      } else {
-        char.y = prevChar.y;
-      }
+      } else {}
 
       prevChar = char;
     }
@@ -217,9 +240,8 @@ export class AppComponent {
       const textContext = textCanvasElement.getContext('2d');
       if (textContext) {
         textContext.fillStyle = this.textColor;
-        textContext.font = `${this.defaultFontSize * this.scaleRatio}px ${
-          this.defaultFontFamily
-        }`;
+        const scaledFontSize = this.defaultFontSize * this.scaleRatio;
+        textContext.font = `${scaledFontSize}px ${this.defaultFontFamily}`;
 
         this.displayCharObjects(
           this.textContentToCharObjects(content, textContext),
@@ -235,7 +257,7 @@ export class AppComponent {
     context: CanvasRenderingContext2D
   ): CharObject[] {
     const charObjs: CharObject[] = this.splitCharString(
-      this.splitLineToLines(content, this.defaultLineFeed),
+      this.splitLineToLines(content),
       context
     );
 
@@ -269,8 +291,8 @@ export class AppComponent {
     }
   }
 
-  /** 视图初始化之后 */
-  ngAfterViewInit(): void {
+  /** 初始化页面上的 canvas 元素 */
+  private initializeCanvasElements(): void {
     if (this.pseudoTerminalRef) {
       // 三个重叠 canvas 元素的直接容器
       const div = this.pseudoTerminalRef.nativeElement;
@@ -314,6 +336,12 @@ export class AppComponent {
         layer.style.height = `${originHeight}px`;
       }
     }
+  }
+
+  /** 视图初始化之后 */
+  ngAfterViewInit(): void {
+    // 初始化 canvas
+    this.initializeCanvasElements();
 
     // 在背景图层画背景颜色
     this.paintBackground();
