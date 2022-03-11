@@ -1,9 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import {
-  Component,
-  ElementRef,
-  ViewChild,
-} from '@angular/core';
+import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
 
 /**
@@ -49,6 +45,15 @@ type CharObject = {
   offsetToLineStart: number;
 };
 
+type CharEdge = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  height: number;
+  width: number;
+};
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -82,7 +87,7 @@ export class AppComponent {
   defaultFontSize = 14;
   defaultFontFamily = 'Monaco';
   paddingLeft = 10;
-  paddingTop = 0;
+  paddingTop = 10;
   paddingRight = 10;
   defaultLineFeed: LineFeed = 'LF';
   wordWrap = false;
@@ -92,6 +97,7 @@ export class AppComponent {
   scaledHeight = 0;
 
   lastPrintCharObjects: CharObject[] = [];
+  currentHighlightCharIdx?: number;
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
   pseudoTerminalRef?: ElementRef<HTMLDivElement>;
@@ -112,7 +118,7 @@ export class AppComponent {
   constructor(private httpClient: HttpClient) {}
 
   /** 将文字拆分成逻辑行 */
-  private splitLineToLines(line: string, ): string[] {
+  private splitLineToLines(line: string): string[] {
     if (line.length === 0) {
       return [];
     }
@@ -122,9 +128,9 @@ export class AppComponent {
 
   private getLineFeedContent(): string {
     const lfMap: Record<LineFeed, string> = {
-      'CR': '\r',
-      'CRLF': '\r\n',
-      'LF': '\n',
+      CR: '\r',
+      CRLF: '\r\n',
+      LF: '\n',
     };
 
     return lfMap[this.defaultLineFeed];
@@ -172,22 +178,25 @@ export class AppComponent {
       return;
     }
 
-    // 把第一个字平移到第一行第一列
-    // 先把第一个字平移到第一行
+    // 平移第一个文字到第一行第一列
     const firtChar = charObjs[0];
-    // firtChar.y = this.firstLinePaddingTop +
-    firtChar.y = this.paddingTop + firtChar.boxAscent + firtChar.boxDescent;
-    // 然后把第一个字平移到第一列
-    // firtChar.x = 0 - firtChar.dimension.actualBoundingBoxLeft;
-    firtChar.x = this.paddingLeft;
+    firtChar.x = 0;
+    firtChar.y = 0;
+    const firstCharEdge = this.getCharEdge(firtChar);
+    const xDisp = this.paddingLeft - firstCharEdge.minX;
+    firtChar.x = firtChar.x + xDisp;
+    const yDisp = this.paddingTop - firstCharEdge.minY;
+    firtChar.y = firtChar.y + yDisp;
 
-    function charNewLine(
+    const charNewLine = (
       char: CharObject,
       prevChar: CharObject,
       lineHeightFactor: number
-    ): void {
+    ) => {
       char.x = firtChar.x;
-      const vDisp = lineHeightFactor * (prevChar.boxAscent + prevChar.boxDescent);
+      const prevEdge = this.getCharEdge(prevChar);
+      const prevHeight = prevEdge.height;
+      const vDisp = lineHeightFactor * prevHeight;
       char.y = prevChar.y + vDisp;
       char.displayLineNumber = prevChar.displayLineNumber + lineHeightFactor;
     }
@@ -207,7 +216,8 @@ export class AppComponent {
         char.x + char.dimension.width > this.scaledWidth - this.paddingLeft
       ) {
         charNewLine(char, prevChar, 1);
-      } else {}
+      } else {
+      }
 
       prevChar = char;
     }
@@ -356,6 +366,94 @@ export class AppComponent {
   handleClick(event: Event, element: HTMLElement): void {
     const x = (event as MouseEvent).offsetX;
     const y = (event as MouseEvent).offsetY;
-    console.log(this.lastPrintCharObjects);
+    this.currentHighlightCharIdx = undefined;
+    const charQuery = this.findCharObj(x * this.scaleRatio, y * this.scaleRatio, this.lastPrintCharObjects);
+    this.clearCursor();
+    if (charQuery) {
+      console.log(charQuery.char);
+      this.fillChar(charQuery.char);
+      this.currentHighlightCharIdx = charQuery.idx;
+    }
+  }
+
+  private fillChar(charObj: CharObject): void {
+    const context = this.getCursorContext();
+    if (context) {
+      const edge = this.getCharEdge(charObj);
+      context.globalCompositeOperation = 'copy';
+      context.fillStyle = this.cursorColor;
+      context.beginPath();
+      context.moveTo(edge.minX, edge.maxY);
+      context.lineTo(edge.maxX, edge.maxY);
+      context.lineTo(edge.maxX, edge.minY);
+      context.lineTo(edge.minX, edge.minY);
+      context.lineTo(edge.minX, edge.maxY);
+      context.closePath();
+      context.fill();
+    }
+  }
+
+  private clearCursor(): void {
+    const context = this.getCursorContext();
+    if (context) {
+      context.clearRect(0, 0, this.scaledWidth, this.scaledHeight);
+    }
+  }
+
+  private getCursorContext(): CanvasRenderingContext2D | undefined {
+    if (this.cursorRef) {
+      const ctx = this.cursorRef.nativeElement.getContext('2d');
+      if (ctx) {
+        return ctx;
+      }
+    }
+
+    return undefined;
+  }
+
+  private findCharObj(
+    x: number,
+    y: number,
+    chars: CharObject[]
+  ): { idx: number; char: CharObject } | undefined {
+    for (let idx = 0; idx < chars.length; idx++) {
+      const char = chars[idx];
+      const charEdge = this.getCharEdge(char);
+      if (this.coordInCharEdge(x, y, charEdge)) {
+        return { idx, char };
+      }
+    }
+
+    return undefined;
+  }
+
+  private coordInCharEdge(x: number, y: number, charEdge: CharEdge): boolean {
+    if (
+      x <= charEdge.maxX &&
+      x >= charEdge.minX &&
+      y <= charEdge.maxY &&
+      y >= charEdge.minY
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private getCharEdge(charObj: CharObject): CharEdge {
+    // const minX = charObj.x + (charObj.dimension as any).actualBoundingBoxLeft;
+    const minX = charObj.x;
+    const maxX = minX + (charObj.dimension as any).width;
+    const minY = charObj.y - (charObj.dimension as any).fontBoundingBoxAscent;
+    const maxY = charObj.y + (charObj.dimension as any).fontBoundingBoxDescent;
+
+    return {
+      minX,
+      maxX,
+      maxY,
+      minY,
+      height: maxY - minY,
+      width: (charObj.dimension as any).width,
+    };
   }
 }
