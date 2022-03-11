@@ -172,9 +172,9 @@ export class AppComponent {
     // firtChar.x = 0 - firtChar.dimension.actualBoundingBoxLeft;
     firtChar.x = this.linePaddingLeft;
 
-    function charNewLine(char: CharObject, prevChar: CharObject): void {
+    function charNewLine(char: CharObject, prevChar: CharObject, lineHeightFactor: number): void {
       char.x = firtChar.x;
-      char.y = prevChar.y + (prevChar.maxY - prevChar.minY);
+      char.y = prevChar.y + lineHeightFactor * (prevChar.maxY - prevChar.minY);
       char.displayLineNumber = prevChar.displayLineNumber + 1;
     }
 
@@ -185,11 +185,11 @@ export class AppComponent {
 
       char.x = prevChar.x + prevChar.dimension.width;
 
-      if (
-        prevChar.lineNumber < char.lineNumber ||
-        (this.wordWrap && char.x + char.dimension.width > this.wordWrapWidth)
-      ) {
-        charNewLine(char, prevChar);
+      if (prevChar.lineNumber < char.lineNumber) {
+        charNewLine(char, prevChar, char.lineNumber - prevChar.lineNumber);
+      }
+      else if (this.wordWrap && char.x + char.dimension.width > this.wordWrapWidth) {
+        charNewLine(char, prevChar, 1);
       } else {
         char.y = prevChar.y;
       }
