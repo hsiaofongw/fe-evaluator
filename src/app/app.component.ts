@@ -5,18 +5,51 @@ import {
   ViewChild,
   ViewContainerRef,
 } from '@angular/core';
+import { FormControl } from '@angular/forms';
 import { from, interval, of } from 'rxjs';
 import { delay, delayWhen, sample } from 'rxjs/operators';
 
+/**
+ * 换行方式
+ *
+ * 'CR': 用一个 0x0D 字符 '\r' 表示换行
+ *
+ * 'CRLF': 用 0x0D 字符 '\r', 而后紧接着一个 0x0A 字符 '\n' 表示换行
+ *
+ * 'LF': 用一个 0x0A 字符 '\n' 表示换行
+ */
+type LineFeed = 'CR' | 'CRLF' | 'LF';
+
 type CharObject = {
+  /** 文字的内容 */
   content: string;
+
+  /** 文字在 Canvas 中的度量信息 */
   dimension: TextMetrics;
+
+  /** 文字的基点的 x */
   x: number;
+
+  /** 文字的基点的 y */
   y: number;
+
+  /** 文字的盒子的最上边的 y */
   minY: number;
+
+  /** 文字的盒子的最下边的 y */
   maxY: number;
+
+  /** 文字的基点到盒子最下边的垂直距离 */
   boxDescent: number;
+
+  /** 文字的基点到盒子最上边的垂直距离 */
   boxAscent: number;
+
+  /** 行号，第一行是 0 */
+  lineNumber: number;
+
+  /** 实际显示行号，当 word-wrap 处于开启时，displayLineNumber >= lineNumber 恒成立 */
+  displayLineNumber: number;
 };
 
 @Component({
@@ -52,7 +85,14 @@ export class AppComponent {
   defaultFontSize = 14;
   defaultFontFamily = 'Monaco';
   linePaddingLeft = 10;
+  defaultLineFeed: LineFeed = 'LF';
   firstLinePaddingTop = 10;
+  wordWrap = false;
+  wordWrapWidth = 0;
+  originWidth = 0;
+  originHeight = 0;
+  scaledWidth = 0;
+  scaledHeight = 0;
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
   pseudoTerminalRef?: ElementRef<HTMLDivElement>;
@@ -64,56 +104,117 @@ export class AppComponent {
   @ViewChild('cursorRef', { read: ElementRef })
   cursorRef?: ElementRef<HTMLCanvasElement>;
 
+  inputTextCtrl = new FormControl(null);
+
+  /** 将文字拆分成逻辑行 */
+  private splitLineToLines(line: string, lineFeed: LineFeed): string[] {
+    if (line.length === 0) {
+      return [];
+    }
+
+    if (lineFeed === 'CR') {
+      return line.split('\r');
+    } else if (lineFeed === 'CRLF') {
+      return line.split('\r\n');
+    } else {
+      return line.split('\n');
+    }
+  }
+
+  /** 将文本内容拆分成一个 CharObject 数组 */
+  private contentToCharObject(
+    lines: string[],
+    textContext: CanvasRenderingContext2D
+  ): CharObject[] {
+    const charObjs: CharObject[] = [];
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const content = lines[lineIdx];
+
+      for (const char of content) {
+        const metric = textContext.measureText(char);
+        const charObj: CharObject = {
+          content: char,
+          dimension: metric,
+          x: 0,
+          y: 0,
+          boxDescent: (metric as any).fontBoundingBoxDescent,
+          boxAscent: (metric as any).fontBoundingBoxAscent,
+          minY: 0,
+          maxY: 0,
+          lineNumber: lineIdx,
+          displayLineNumber: lineIdx,
+        };
+
+        charObj.minY = charObj.y - charObj.boxAscent;
+        charObj.maxY = charObj.y + charObj.boxDescent;
+
+        charObjs.push(charObj);
+      }
+    }
+
+    return charObjs;
+  }
+
+  /** 计算文本内容中每个文字的几何信息  */
+  private calculateCharObjectGeometry(charObjs: CharObject[]): void {
+    if (charObjs.length === 0) {
+      return;
+    }
+
+    // 把第一个字平移到第一行第一列
+    // 先把第一个字平移到第一行
+    const topEdge = this.firstLinePaddingTop;
+    const firtChar = charObjs[0];
+    const disp = topEdge - firtChar.minY;
+    firtChar.y = firtChar.y + disp;
+    firtChar.maxY = firtChar.maxY + disp;
+    // 然后把第一个字平移到第一列
+    // firtChar.x = 0 - firtChar.dimension.actualBoundingBoxLeft;
+    firtChar.x = this.linePaddingLeft;
+
+    function charNewLine(char: CharObject, prevChar: CharObject): void {
+      char.x = firtChar.x;
+      char.y = prevChar.y + (prevChar.maxY - prevChar.minY);
+      char.displayLineNumber = prevChar.displayLineNumber + 1;
+    }
+
+    // 计算每一个 char 的 x 和 y 并且处理 word-wrap 和换行的情形
+    let prevChar = firtChar;
+    for (let i = 1; i < charObjs.length; i++) {
+      const char = charObjs[i];
+
+      char.x = prevChar.x + prevChar.dimension.width;
+
+      if (
+        prevChar.lineNumber < char.lineNumber ||
+        (this.wordWrap && char.x + char.dimension.width > this.wordWrapWidth)
+      ) {
+        charNewLine(char, prevChar);
+      } else {
+        char.y = prevChar.y;
+      }
+
+      prevChar = char;
+    }
+  }
+
   private displayText(content: string): void {
     if (this.textCanvasRef) {
       const textCanvasElement = this.textCanvasRef.nativeElement;
       const textContext = textCanvasElement.getContext('2d');
       if (textContext) {
+        textContext.clearRect(0, 0, this.scaledWidth, this.scaledHeight);
         textContext.fillStyle = this.textColor;
         textContext.font = `${this.defaultFontSize * this.scaleRatio}px ${
           this.defaultFontFamily
         }`;
 
-        const charObjs: CharObject[] = [];
-        for (const char of content) {
-          const metric = textContext.measureText(char);
-          const charObj = {
-            content: char,
-            dimension: metric,
-            x: 0,
-            y: 0,
-            boxDescent: (metric as any).fontBoundingBoxDescent,
-            boxAscent: (metric as any).fontBoundingBoxAscent,
-            minY: 0,
-            maxY: 0,
-          };
+        const charObjs: CharObject[] = this.contentToCharObject(
+          this.splitLineToLines(content, this.defaultLineFeed),
+          textContext
+        );
 
-          charObj.minY = charObj.y - charObj.boxAscent;
-          charObj.maxY = charObj.y + charObj.boxDescent;
-
-          charObjs.push(charObj);
-        }
-
-        // 文字上下平移
-        const topEdge = this.firstLinePaddingTop;
-        for (const char of charObjs) {
-          const disp = topEdge - char.minY;
-          char.minY = char.minY + disp;
-          char.y = char.y + disp;
-          char.maxY = char.maxY + disp;
-        }
-
-
-        // 计算 x
-        // 第一个加上左填充
-        if (charObjs.length) {
-          charObjs[0].x = this.linePaddingLeft;
-        }
-        for (let i = 1; i < charObjs.length; i++) {
-          const prevChar = charObjs[i - 1];
-          const char = charObjs[i];
-          char.x = prevChar.x + Math.ceil(prevChar.dimension.width);
-        }
+        this.calculateCharObjectGeometry(charObjs);
 
         for (const char of charObjs) {
           textContext.fillText(char.content, char.x, char.y);
@@ -145,6 +246,11 @@ export class AppComponent {
       const originHeight = box.height;
       const scaledWidth = originWidth * ratio;
       const scaledHeight = originHeight * ratio;
+      this.wordWrapWidth = originWidth;
+      this.scaledHeight = scaledHeight;
+      this.scaledWidth = scaledWidth;
+      this.originWidth = originWidth;
+      this.originHeight = originHeight;
 
       const canvasLayers: HTMLCanvasElement[] = [];
 
@@ -169,49 +275,11 @@ export class AppComponent {
     }
 
     this.paintBackground();
-    this.displayText('Hello, world');
 
-    // if (this.canvasRef) {
-    //   const canvas = this.canvasRef.nativeElement;
-    //   const context = canvas.getContext('2d');
-    //   if (context) {
-    //     context.fillStyle = this.cursorColor;
-    //     context.font = '20px serif';
-    //     context.globalCompositeOperation = 'copy';
-
-    //     const ratio = window.devicePixelRatio || 1;
-    //     console.log({ ratio });
-    //     context.scale(ratio, ratio);
-    //     const basepoint: [number, number] = [40, 20];
-    //     const content = '你好，世界';
-    //     let i = 0;
-
-    //     const s = interval(1000).subscribe(() => {
-    //       context.fillText(content[i], basepoint[0], basepoint[1]);
-    //       i = i + 1;
-    //       if (i >= content.length) {
-    //         s.unsubscribe();
-    //       }
-    //     });
-
-    //     const spaceDim = context.measureText(content[0]);
-    //     const minX = Math.floor(basepoint[0] + (spaceDim as any).actualBoundingBoxLeft);
-    //     const maxX = Math.ceil(basepoint[0] + (spaceDim as any).actualBoundingBoxRight);
-    //     const minY = Math.floor(basepoint[1] - (spaceDim as any).fontBoundingBoxAscent);
-    //     const maxY = Math.ceil(basepoint[1] + (spaceDim as any).fontBoundingBoxDescent);
-
-    //     // let show = false;
-    //     // interval(1000).subscribe(() => {
-    //     //   if (show) {
-    //     //     context.clearRect(minX, minY, maxX - minX, maxY - minY);
-    //     //     context.fillText(content, basepoint[0], basepoint[1]);
-    //     //     show = false;
-    //     //   } else {
-    //     //     context.fillRect(minX, minY, maxX - minX, maxY - minY);
-    //     //     show = true;
-    //     //   }
-    //     // });
-    //   }
-    // }
+    this.inputTextCtrl.valueChanges.subscribe(content => {
+      if (typeof content === 'string') {
+        this.displayText(content);
+      }
+    })
   }
 }
