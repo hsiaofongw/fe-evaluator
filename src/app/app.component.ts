@@ -1,14 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import {
   Component,
-  Directive,
   ElementRef,
   ViewChild,
-  ViewContainerRef,
 } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
-import { from, interval, of } from 'rxjs';
-import { delay, delayWhen, sample } from 'rxjs/operators';
 
 /**
  * 换行方式
@@ -33,12 +29,6 @@ type CharObject = {
 
   /** 文字的基点的 y */
   y: number;
-
-  /** 文字的盒子的最上边的 y */
-  minY: number;
-
-  /** 文字的盒子的最下边的 y */
-  maxY: number;
 
   /** 文字的基点到盒子最下边的垂直距离 */
   boxDescent: number;
@@ -91,14 +81,17 @@ export class AppComponent {
   scaleRatio = 1;
   defaultFontSize = 14;
   defaultFontFamily = 'Monaco';
-  linePaddingLeft = 10;
+  paddingLeft = 10;
+  paddingTop = 0;
+  paddingRight = 10;
   defaultLineFeed: LineFeed = 'LF';
-  firstLinePaddingTop = 10;
   wordWrap = false;
   originWidth = 0;
   originHeight = 0;
   scaledWidth = 0;
   scaledHeight = 0;
+
+  lastPrintCharObjects: CharObject[] = [];
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
   pseudoTerminalRef?: ElementRef<HTMLDivElement>;
@@ -157,22 +150,16 @@ export class AppComponent {
           y: 0,
           boxDescent: (metric as any).fontBoundingBoxDescent,
           boxAscent: (metric as any).fontBoundingBoxAscent,
-          minY: 0,
-          maxY: 0,
           lineNumber: lineIdx,
           displayLineNumber: lineIdx,
           offsetToFileStart: globalOffset,
           offsetToLineStart: lineOffset,
         };
 
-        charObj.minY = charObj.y - charObj.boxAscent;
-        charObj.maxY = charObj.y + charObj.boxDescent;
-
         charObjs.push(charObj);
         globalOffset = globalOffset + 1;
       }
 
-      globalOffset = globalOffset - 1;
       globalOffset = globalOffset + this.getLineFeedContent().length;
     }
 
@@ -187,15 +174,12 @@ export class AppComponent {
 
     // 把第一个字平移到第一行第一列
     // 先把第一个字平移到第一行
-    const topEdge = this.firstLinePaddingTop;
     const firtChar = charObjs[0];
-    const disp = topEdge - firtChar.minY;
-    firtChar.y = firtChar.y + disp;
-    firtChar.maxY = firtChar.maxY + disp;
-    firtChar.minY = firtChar.minY + disp;
+    // firtChar.y = this.firstLinePaddingTop +
+    firtChar.y = this.paddingTop + firtChar.boxAscent + firtChar.boxDescent;
     // 然后把第一个字平移到第一列
     // firtChar.x = 0 - firtChar.dimension.actualBoundingBoxLeft;
-    firtChar.x = this.linePaddingLeft;
+    firtChar.x = this.paddingLeft;
 
     function charNewLine(
       char: CharObject,
@@ -203,10 +187,8 @@ export class AppComponent {
       lineHeightFactor: number
     ): void {
       char.x = firtChar.x;
-      const vDisp = lineHeightFactor * (prevChar.maxY - prevChar.minY);
+      const vDisp = lineHeightFactor * (prevChar.boxAscent + prevChar.boxDescent);
       char.y = prevChar.y + vDisp;
-      char.minY = prevChar.minY + vDisp;
-      char.maxY = prevChar.maxY + vDisp;
       char.displayLineNumber = prevChar.displayLineNumber + lineHeightFactor;
     }
 
@@ -217,14 +199,12 @@ export class AppComponent {
 
       char.x = prevChar.x + prevChar.dimension.width;
       char.y = prevChar.y;
-      char.minY = prevChar.minY;
-      char.maxY = prevChar.maxY;
 
       if (prevChar.lineNumber < char.lineNumber) {
         charNewLine(char, prevChar, char.lineNumber - prevChar.lineNumber);
       } else if (
         this.wordWrap &&
-        char.x + char.dimension.width > this.scaledWidth
+        char.x + char.dimension.width > this.scaledWidth - this.paddingLeft
       ) {
         charNewLine(char, prevChar, 1);
       } else {}
@@ -275,6 +255,7 @@ export class AppComponent {
     for (const char of charObjs) {
       textContext.fillText(char.content, char.x, char.y);
     }
+    this.lastPrintCharObjects = charObjs;
   }
 
   /** 在背景 canvas 上展示背景颜色 */
@@ -375,6 +356,6 @@ export class AppComponent {
   handleClick(event: Event, element: HTMLElement): void {
     const x = (event as MouseEvent).offsetX;
     const y = (event as MouseEvent).offsetY;
-    console.log({ x, y });
+    console.log(this.lastPrintCharObjects);
   }
 }
