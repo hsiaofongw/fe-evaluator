@@ -13,24 +13,26 @@ import { FormControl, FormGroup } from '@angular/forms';
  */
 type LineFeed = 'CR' | 'CRLF' | 'LF';
 
-type CharObject = {
-  /** 文字的内容 */
-  content: string;
+type CharGeometry = {
+  logicalWidth: number;
+  fontBoundingBoxDescent: number;
+  fontBoundingBoxAscent: number;
+  actualBoundingBoxRight: number;
+  actualBoundingBoxLeft: number;
+};
 
+type CharObjectBasic = {
   /** 文字在 Canvas 中的度量信息 */
   dimension: TextMetrics;
+
+  /** 反复使用的几何数据 */
+  geometry: CharGeometry;
 
   /** 文字的基点的 x */
   x: number;
 
   /** 文字的基点的 y */
   y: number;
-
-  /** 文字的基点到盒子最下边的垂直距离 */
-  boxDescent: number;
-
-  /** 文字的基点到盒子最上边的垂直距离 */
-  boxAscent: number;
 
   /** 行号，第一行是 0 */
   lineNumber: number;
@@ -43,6 +45,14 @@ type CharObject = {
 
   /** 在所在行中的位置 */
   offsetToLineStart: number;
+};
+
+type CharObject = CharObjectBasic & {
+  /** 类型 */
+  type: 'normal';
+
+  /** 文字的内容 */
+  content: string;
 };
 
 type CharEdge = {
@@ -78,7 +88,6 @@ export class AppComponent {
     $cyan: '#2aa198',
     $green: '#859900',
   };
-
   title = 'fe-evaluator';
   cursorColor = this.solarized.$base01;
   backgroundColor = this.solarized.$base02;
@@ -95,25 +104,25 @@ export class AppComponent {
   originHeight = 0;
   scaledWidth = 0;
   scaledHeight = 0;
-
   lastPrintCharObjects: CharObject[] = [];
   currentHighlightCharIdx?: number;
+  inputTextCtrl = new FormControl(null);
+  wordWrapCtrl = new FormControl(false);
+  modeForm = new FormGroup({
+    wordWrap: this.wordWrapCtrl,
+  });
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
   pseudoTerminalRef?: ElementRef<HTMLDivElement>;
 
   @ViewChild('backgroundCanvasRef', { read: ElementRef })
   backgroundCanvasRef?: ElementRef<HTMLCanvasElement>;
+
   @ViewChild('textCanvasRef', { read: ElementRef })
   textCanvasRef?: ElementRef<HTMLCanvasElement>;
+
   @ViewChild('cursorRef', { read: ElementRef })
   cursorRef?: ElementRef<HTMLCanvasElement>;
-
-  inputTextCtrl = new FormControl(null);
-  wordWrapCtrl = new FormControl(false);
-  modeForm = new FormGroup({
-    wordWrap: this.wordWrapCtrl,
-  });
 
   constructor(private httpClient: HttpClient) {}
 
@@ -146,30 +155,56 @@ export class AppComponent {
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const content = lines[lineIdx];
 
+      let lineOffsetCounter = 0;
       for (let lineOffset = 0; lineOffset < content.length; lineOffset++) {
         const char = content[lineOffset];
         const metric = textContext.measureText(char);
         const charObj: CharObject = {
           content: char,
+          type: 'normal',
           dimension: metric,
           x: 0,
           y: 0,
-          boxDescent: (metric as any).fontBoundingBoxDescent,
-          boxAscent: (metric as any).fontBoundingBoxAscent,
           lineNumber: lineIdx,
           displayLineNumber: lineIdx,
           offsetToFileStart: globalOffset,
           offsetToLineStart: lineOffset,
+          geometry: this.getGeometry(metric),
         };
 
         charObjs.push(charObj);
         globalOffset = globalOffset + 1;
+        lineOffsetCounter = lineOffsetCounter + 1;
       }
 
+      const lineFeedContent = this.getLineFeedContent();
+      const metric = textContext.measureText(lineFeedContent);
+      charObjs.push({
+        content: lineFeedContent,
+        type: 'normal',
+        dimension: metric,
+        x: 0,
+        y: 0,
+        lineNumber: lineIdx,
+        displayLineNumber: lineIdx,
+        offsetToFileStart: globalOffset,
+        offsetToLineStart: lineOffsetCounter,
+        geometry: this.getGeometry(metric)
+      });
       globalOffset = globalOffset + this.getLineFeedContent().length;
     }
 
     return charObjs;
+  }
+
+  private getGeometry(metric: TextMetrics): CharGeometry {
+    return {
+      logicalWidth: (metric as any).width,
+      fontBoundingBoxAscent: (metric as any).fontBoundingBoxAscent,
+      fontBoundingBoxDescent: (metric as any).fontBoundingBoxDescent,
+      actualBoundingBoxLeft: (metric as any).actualBoundingBoxLeft,
+      actualBoundingBoxRight: (metric as any).actualBoundingBoxRight,
+    };
   }
 
   /** 计算文本内容中每个文字的几何信息  */
@@ -178,45 +213,64 @@ export class AppComponent {
       return;
     }
 
-    // 平移第一个文字到第一行第一列
+    // 指向第一个文字
     const firtChar = charObjs[0];
-    firtChar.x = 0;
-    firtChar.y = 0;
-    const firstCharEdge = this.getCharEdge(firtChar);
-    const xDisp = this.paddingLeft - firstCharEdge.minX;
-    firtChar.x = firtChar.x + xDisp;
-    const yDisp = this.paddingTop - firstCharEdge.minY;
-    firtChar.y = firtChar.y + yDisp;
 
-    const charNewLine = (
-      char: CharObject,
-      prevChar: CharObject,
-      lineHeightFactor: number
-    ) => {
-      char.x = firtChar.x;
-      const prevEdge = this.getCharEdge(prevChar);
-      const prevHeight = prevEdge.height;
-      const vDisp = lineHeightFactor * prevHeight;
-      char.y = prevChar.y + vDisp;
-      char.displayLineNumber = prevChar.displayLineNumber + lineHeightFactor;
-    }
+    // 先将它的 x 设为 0
+    firtChar.x = 0;
+
+    // 然后计算它的最左边界
+    const minX = firtChar.x + firtChar.geometry.actualBoundingBoxLeft;
+
+    // 然后计算需要向右平移的距离
+    const xDisp = this.paddingLeft - minX;
+
+    // 然后向右平移
+    firtChar.x = firtChar.x + xDisp;
+
+    // 第一个文字的 x 计算完成
+
+    // 计算第一个文字的 y
+    // 也是先将第一个文字的 y 置为 0
+    firtChar.y = 0;
+
+    // 然后计算这个文字的最上边距值
+    const minY = firtChar.y - firtChar.geometry.fontBoundingBoxAscent;
+
+    // 然后计算所需向下平移的距离
+    const yDisp = this.paddingTop - minY;
+
+    // 然后执行平移操作
+    firtChar.y = firtChar.y + yDisp;
 
     // 计算每一个 char 的 x 和 y 并且处理 word-wrap 和换行的情形
     let prevChar = firtChar;
     for (let i = 1; i < charObjs.length; i++) {
       const char = charObjs[i];
 
-      char.x = prevChar.x + prevChar.dimension.width;
+      // 默认情形
+      char.x =
+        prevChar.x +
+        prevChar.geometry.actualBoundingBoxRight +
+        Math.abs(char.geometry.actualBoundingBoxLeft);
+
+      if (prevChar.geometry.actualBoundingBoxRight === prevChar.geometry.actualBoundingBoxLeft) {
+        char.x = prevChar.x + prevChar.geometry.logicalWidth;
+      }
+
       char.y = prevChar.y;
 
-      if (prevChar.lineNumber < char.lineNumber) {
-        charNewLine(char, prevChar, char.lineNumber - prevChar.lineNumber);
-      } else if (
-        this.wordWrap &&
-        char.x + char.dimension.width > this.scaledWidth - this.paddingLeft
+      if (
+        prevChar.lineNumber < char.lineNumber ||
+        (this.wordWrap &&
+          char.x + char.dimension.width > this.scaledWidth - this.paddingLeft)
       ) {
-        charNewLine(char, prevChar, 1);
-      } else {
+        // 手动换行情形处理
+        char.x = firtChar.x;
+        char.y =
+          prevChar.y +
+          prevChar.geometry.fontBoundingBoxDescent +
+          char.geometry.fontBoundingBoxAscent;
       }
 
       prevChar = char;
@@ -374,7 +428,11 @@ export class AppComponent {
     const x = (event as MouseEvent).offsetX;
     const y = (event as MouseEvent).offsetY;
     this.currentHighlightCharIdx = undefined;
-    const charQuery = this.findCharObj(x * this.scaleRatio, y * this.scaleRatio, this.lastPrintCharObjects);
+    const charQuery = this.findCharObj(
+      x * this.scaleRatio,
+      y * this.scaleRatio,
+      this.lastPrintCharObjects
+    );
     this.clearCursor();
     if (charQuery) {
       console.log(charQuery.char);
