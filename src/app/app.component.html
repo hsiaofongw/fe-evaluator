@@ -9,6 +9,7 @@
     *ngFor="let evaluator of evaluators; let i = index"
     nzCustomContent
     [nzValue]="i"
+    [nzDisabled]="!evaluator.topicId"
   >
     <div
       nz-popover
@@ -16,8 +17,10 @@
       nzPopoverPlacement="rightTop"
       (mouseenter)="handleMouseEnter(evaluator)"
       (mouseout)="handleMouseOut()"
+      class="option-item-container"
     >
-      {{ evaluator.name }}
+      <i *ngIf="!evaluator.topicId" nz-icon nzType="loading" nzTheme="outline"></i>
+      <span>{{ evaluator.name }}</span>
     </div>
   </nz-option>
 </nz-select>

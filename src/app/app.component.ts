@@ -32,13 +32,9 @@ export class AppComponent {
   ngAfterViewInit(): void {
     this.pseudoTerminal?.prompt('In[0]:= ');
 
-    const evaluator1 = new Evaluator('http://localhost:3000', this.evaluateService, '测试1');
-    const evaluator2 = new Evaluator('http://localhost:3000', this.evaluateService, '测试2');
-    const evaluator3 = new Evaluator('http://localhost:3000', this.evaluateService,);
-    this.evaluators.push(evaluator1);
-    this.evaluators.push(evaluator2);
-    this.evaluators.push(evaluator3);
-    this.evaluators.forEach(e => e.initialize().subscribe());
+    const defaultEvaluator = new Evaluator('http://localhost:3000', this.evaluateService, '默认会话');
+    defaultEvaluator.initialize().subscribe();
+    this.evaluators.push(defaultEvaluator);
   }
 
   handleTerminalFlush(inputContent: string): void {
