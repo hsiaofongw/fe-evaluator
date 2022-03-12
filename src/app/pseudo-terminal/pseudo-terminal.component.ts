@@ -1,17 +1,21 @@
-
 import { HttpClient } from '@angular/common/http';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
 import { fromEvent, Observable, Subject, Subscription } from 'rxjs';
-import { LineFeed, CharObject, DisplayContent, CharGeometry, CharEdge } from '../interfaces';
+import {
+  LineFeed,
+  CharObject,
+  DisplayContent,
+  CharGeometry,
+  CharEdge,
+} from '../interfaces';
 
 @Component({
   selector: 'app-pseudo-terminal',
   templateUrl: './pseudo-terminal.component.html',
-  styleUrls: ['./pseudo-terminal.component.scss']
+  styleUrls: ['./pseudo-terminal.component.scss'],
 })
 export class PseudoTerminalComponent {
-
   defaultFontSize = 14;
   defaultFontFamily = 'Monaco';
   defaultLineFeed: LineFeed = 'LF';
@@ -58,7 +62,7 @@ export class PseudoTerminalComponent {
   private displayContent: DisplayContent = {
     printed: '',
     prompt: '',
-    inputing: '\n',
+    inputing: '',
   };
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
@@ -138,7 +142,7 @@ export class PseudoTerminalComponent {
         displayLineNumber: lineIdx,
         offsetToFileStart: globalOffset,
         offsetToLineStart: lineOffsetCounter,
-        geometry: this.getGeometry(metric)
+        geometry: this.getGeometry(metric),
       });
       globalOffset = globalOffset + this.getLineFeedContent().length;
     }
@@ -203,7 +207,10 @@ export class PseudoTerminalComponent {
         prevChar.geometry.actualBoundingBoxRight +
         Math.abs(char.geometry.actualBoundingBoxLeft);
 
-      if (prevChar.geometry.actualBoundingBoxRight === prevChar.geometry.actualBoundingBoxLeft) {
+      if (
+        prevChar.geometry.actualBoundingBoxRight ===
+        prevChar.geometry.actualBoundingBoxLeft
+      ) {
         char.x = prevChar.x + prevChar.geometry.logicalWidth;
       }
 
@@ -228,7 +235,10 @@ export class PseudoTerminalComponent {
 
   /** 在 canvas 上显示一段文字 */
   private updateCanvasDisplay(): void {
-    const content = this.displayContent.printed + this.displayContent.prompt + this.displayContent.inputing;
+    const content =
+      this.displayContent.printed +
+      this.displayContent.prompt +
+      this.displayContent.inputing;
     if (this.textCanvasRef) {
       const textCanvasElement = this.textCanvasRef.nativeElement;
       const textContext = textCanvasElement.getContext('2d');
@@ -456,17 +466,26 @@ export class PseudoTerminalComponent {
   }
 
   public handleFocus() {
-    this.keyboardSubscription = fromEvent(window, 'keydown').subscribe(event => {
-      const keyboardEvent = event as KeyboardEvent;
-      this.keyboardEvent$.next(keyboardEvent);
-    });
+    this.keyboardSubscription = fromEvent(window, 'keydown').subscribe(
+      (event) => {
+        const keyboardEvent = event as KeyboardEvent;
+        this.keyboardEvent$.next(keyboardEvent);
+      }
+    );
   }
 
   public prompt(content: string): void {
-    this.displayContent.printed = this.displayContent.printed + this.displayContent.prompt + this.displayContent.inputing;
+    let lastPrinted = this.displayContent.printed +
+    this.displayContent.prompt +
+    this.displayContent.inputing;
+
+    if (lastPrinted.length > 0) {
+      lastPrinted = lastPrinted + '\n';
+    }
+
+    this.displayContent.printed = lastPrinted;
+    
     this.displayContent.prompt = content;
     this.updateCanvasDisplay();
   }
- 
-
 }
