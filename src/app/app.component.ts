@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
+import { fromEvent, Subscription } from 'rxjs';
 
 /**
  * 换行方式
@@ -64,12 +65,23 @@ type CharEdge = {
   width: number;
 };
 
+type DisplayContent = {
+  printed: string;
+  prompt: string;
+  inputing: string;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
 export class AppComponent {
+  defaultFontSize = 14;
+  defaultFontFamily = 'Monaco';
+  defaultLineFeed: LineFeed = 'LF';
+  defaultWordWrapOption = true;
+
   solarized = {
     $base03: '#002b36',
     $base02: '#073642',
@@ -88,17 +100,15 @@ export class AppComponent {
     $cyan: '#2aa198',
     $green: '#859900',
   };
+
   title = 'fe-evaluator';
   cursorColor = this.solarized.$base01;
   backgroundColor = this.solarized.$base02;
   textColor = this.solarized.$base1;
   scaleRatio = 1;
-  defaultFontSize = 14;
-  defaultFontFamily = 'Monaco';
   paddingLeft = 10;
   paddingTop = 10;
   paddingRight = 10;
-  defaultLineFeed: LineFeed = 'LF';
   wordWrap = false;
   originWidth = 0;
   originHeight = 0;
@@ -107,10 +117,17 @@ export class AppComponent {
   lastPrintCharObjects: CharObject[] = [];
   currentHighlightCharIdx?: number;
   inputTextCtrl = new FormControl(null);
-  wordWrapCtrl = new FormControl(false);
+  wordWrapCtrl = new FormControl(null);
   modeForm = new FormGroup({
     wordWrap: this.wordWrapCtrl,
   });
+  keyboardSubscription?: Subscription;
+
+  private displayContent: DisplayContent = {
+    printed: '',
+    prompt: '',
+    inputing: '\n',
+  };
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
   pseudoTerminalRef?: ElementRef<HTMLDivElement>;
@@ -413,14 +430,15 @@ export class AppComponent {
         }
       }
     });
+    this.wordWrapCtrl.setValue(this.defaultWordWrapOption);
 
     // 拉去示例文本型文件，加载到 inputTextCtrl 中
     // inputTextCtrl 上定义的状态同步逻辑会自动将这段文字展示到 canvas 上
-    this.httpClient
-      .get('/assets/example-code.c', { responseType: 'text' })
-      .subscribe((code) => {
-        this.inputTextCtrl.setValue(code);
-      });
+    // this.httpClient
+    //   .get('/assets/example-code.c', { responseType: 'text' })
+    //   .subscribe((code) => {
+    //     this.inputTextCtrl.setValue(code);
+    //   });
   }
 
   /** 响应鼠标点击事件 */
@@ -447,8 +465,7 @@ export class AppComponent {
     if (context) {
       const edge = this.getCharEdge(charObj);
       context.globalCompositeOperation = 'copy';
-      context.lineWidth = 6;
-      context.strokeStyle = this.cursorColor;
+      context.fillStyle = this.cursorColor;
       context.beginPath();
       context.moveTo(edge.minX, edge.maxY);
       context.lineTo(edge.maxX, edge.maxY);
@@ -456,7 +473,7 @@ export class AppComponent {
       context.lineTo(edge.minX, edge.minY);
       context.lineTo(edge.minX, edge.maxY);
       context.closePath();
-      context.stroke();
+      context.fill();
     }
   }
 
@@ -514,20 +531,6 @@ export class AppComponent {
     return findByYRange[0];
   }
 
-  /** 给定一组坐标 (x, y), 判断该点是否是在一个 CharEdge 矩形域内 */
-  private coordInCharEdge(x: number, y: number, charEdge: CharEdge): boolean {
-    if (
-      x <= charEdge.maxX &&
-      x >= charEdge.minX &&
-      y <= charEdge.maxY &&
-      y >= charEdge.minY
-    ) {
-      return true;
-    }
-
-    return false;
-  }
-
   /** 获取一个 CharEdge 的矩形域 */
   private getCharEdge(charObj: CharObject): CharEdge {
     // const minX = charObj.x + (charObj.dimension as any).actualBoundingBoxLeft;
@@ -544,5 +547,18 @@ export class AppComponent {
       height: maxY - minY,
       width: (charObj.dimension as any).width,
     };
+  }
+
+  public handleBlur() {
+    this.keyboardSubscription?.unsubscribe();
+    this.clearCursor();
+  }
+
+  public handleFocus() {
+    this.keyboardSubscription = fromEvent(window, 'keydown').subscribe(event => {
+      const kbEvent = event as KeyboardEvent;
+      console.log({ kbEvent });
+      console.log(kbEvent.key);
+    });
   }
 }

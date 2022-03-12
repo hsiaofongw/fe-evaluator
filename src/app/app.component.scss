@@ -44,3 +44,34 @@ $green:     #859900;
     }
   }
 }
+
+.form {
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+  justify-content: space-between;
+  
+  .label {
+    display: inline;
+  }
+
+  .label::after {
+    content: ':';
+  }
+
+  .radio-control {
+    display: inline-flex;
+    align-items: center;
+    column-gap: 10px;
+
+    * {
+      cursor: pointer;
+    }
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: max-content;
+  row-gap: 10px;
+}
