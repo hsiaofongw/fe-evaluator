@@ -51,6 +51,8 @@ export class PseudoTerminalComponent {
   paddingLeft = 10;
   paddingTop = 10;
   paddingRight = 10;
+  paddingBottom = 10;
+  
   wordWrap = false;
 
   originWidth = 0;
@@ -230,6 +232,18 @@ export class PseudoTerminalComponent {
       }
 
       prevChar = char;
+    }
+
+    const bottom = this.scaledHeight - this.scaleRatio * this.paddingBottom;
+    if (charObjs.length) {
+      const maxY = charObjs.map(c => c.y + c.geometry.fontBoundingBoxDescent).sort((a, b) => b-a)[0];
+      // console.log({ maxY, bottom });
+      const disp = maxY - bottom;
+      if (disp > 0) {
+        for (const char of charObjs) {
+          char.y = char.y - disp;
+        }
+      }
     }
   }
 
@@ -458,6 +472,8 @@ export class PseudoTerminalComponent {
   private updateScreen(): void {
     this.updateTextDisplay();
     this.updateCursorPosition();
+
+
   }
 
   /** 在指定的位置绘制 cursor */
