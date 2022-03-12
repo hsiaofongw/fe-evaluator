@@ -10,7 +10,7 @@ export class AppComponent {
   @ViewChild(PseudoTerminalComponent) pseudoTerminal?: PseudoTerminalComponent;
 
   ngAfterViewInit(): void {
-    this.pseudoTerminal?.prompt('Hello');
-    this.pseudoTerminal?.prompt('Hello, World');
+    this.pseudoTerminal?.prompt('In[0]:= ');
+    this.pseudoTerminal?.prompt('In[1]:= ');
   }
 }

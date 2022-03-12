@@ -64,3 +64,9 @@ export type CharEdge = {
   width: number;
 };
 
+export type CursorShape = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+};

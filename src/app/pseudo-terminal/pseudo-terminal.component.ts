@@ -9,6 +9,7 @@ import {
   CharEdge,
   CharGroupType,
   TaggedChar,
+  CursorShape,
 } from '../interfaces';
 
 @Component({
@@ -60,6 +61,9 @@ export class PseudoTerminalComponent {
   keyboardSubscription?: Subscription;
   keyboardEvent$ = new Subject<KeyboardEvent>();
 
+  private segmentsOrder: CharGroupType[] = [
+    'printed', 'prompt', 'inputing', 'displaying',
+  ];
   private displayContent: Record<CharGroupType, string> = {
     printed: '',
     prompt: '',
@@ -80,15 +84,6 @@ export class PseudoTerminalComponent {
   cursorRef?: ElementRef<HTMLCanvasElement>;
 
   constructor(private httpClient: HttpClient) {}
-
-  /** 将文字拆分成逻辑行 */
-  private splitLineToLines(line: string): string[] {
-    if (line.length === 0) {
-      return [];
-    }
-
-    return line.split(this.getLineFeedContent());
-  }
 
   private getLineFeedContent(): string {
     const lfMap: Record<LineFeed, string> = {
@@ -227,22 +222,41 @@ export class PseudoTerminalComponent {
     }
   }
 
+  /** 获取 text 图层 canvas 元素的 2D Context */
+  private getTextContext(): CanvasRenderingContext2D | undefined {
+    const context = this.textCanvasRef?.nativeElement?.getContext('2d') ?? undefined;
+
+    if (context) {
+      context.fillStyle = this.textColor;
+      const scaledFontSize = this.defaultFontSize * this.scaleRatio;
+      context.font = `${scaledFontSize}px ${this.defaultFontFamily}`;
+    }
+
+    return context;
+  }
+
+  /** 获取 cursor 图层 canvas 元素的 2D Context */
+  private getCursorContext(): CanvasRenderingContext2D | undefined {
+    const context = this.cursorRef?.nativeElement?.getContext('2d') ?? undefined;
+
+    if (context) {
+      context.fillStyle = this.cursorColor;
+      const scaledFontSize = this.defaultFontSize * this.scaleRatio;
+      context.font = `${scaledFontSize}px ${this.defaultFontFamily}`;
+    }
+
+    return context;
+  }
+
+
   /** 在 canvas 上显示一段文字 */
   private updateCanvasDisplay(): void {
-    
-    if (this.textCanvasRef) {
-      const textCanvasElement = this.textCanvasRef.nativeElement;
-      const textContext = textCanvasElement.getContext('2d');
-      if (textContext) {
-        textContext.fillStyle = this.textColor;
-        const scaledFontSize = this.defaultFontSize * this.scaleRatio;
-        textContext.font = `${scaledFontSize}px ${this.defaultFontFamily}`;
-
-        this.displayCharObjects(
-          this.textContentToCharObjects(textContext),
-          textContext
-        );
-      }
+    const textContext = this.getTextContext();
+    if (textContext) {
+      this.displayCharObjects(
+        this.textContentToCharObjects(textContext),
+        textContext
+      );
     }
   }
 
@@ -251,8 +265,7 @@ export class PseudoTerminalComponent {
     context: CanvasRenderingContext2D
   ): CharObject[] {
     const taggedChars: TaggedChar[] = [];
-    for (const s in this.displayContent) {
-      const groupName = s as CharGroupType;
+    for (const groupName of this.segmentsOrder) {
       const content = this.displayContent[groupName];
       for (const char of content) {
         taggedChars.push({
@@ -265,8 +278,6 @@ export class PseudoTerminalComponent {
     const charObjs = this.splitCharString(taggedChars, context);
 
     this.calculateCharObjectGeometry(charObjs);
-
-    console.log({charObjs});
 
     return charObjs;
   }
@@ -362,34 +373,33 @@ export class PseudoTerminalComponent {
 
   /** 响应鼠标点击事件 */
   handleClick(event: Event): void {
-    const x = (event as MouseEvent).offsetX;
-    const y = (event as MouseEvent).offsetY;
-    this.currentHighlightCharIdx = undefined;
-    const charQuery = this.findCharObj(
-      x * this.scaleRatio,
-      y * this.scaleRatio,
-      this.lastPrintCharObjects
-    );
-    this.clearCursor();
-    if (charQuery) {
-      this.strokeCharCursor(charQuery.char);
-      this.currentHighlightCharIdx = charQuery.idx;
-    }
+    // const x = (event as MouseEvent).offsetX;
+    // const y = (event as MouseEvent).offsetY;
+    // this.currentHighlightCharIdx = undefined;
+    // const charQuery = this.findCharObj(
+    //   x * this.scaleRatio,
+    //   y * this.scaleRatio,
+    //   this.lastPrintCharObjects
+    // );
+    // this.clearCursor();
+    // if (charQuery) {
+    //   this.strokeCharCursor(charQuery.char);
+    //   this.currentHighlightCharIdx = charQuery.idx;
+    // }
   }
 
-  /** 在指定的 CharObj 处绘制 cursor */
-  private strokeCharCursor(charObj: CharObject): void {
+  /** 在指定的位置绘制 cursor */
+  private paintCharCursor(cursor: CursorShape): void {
     const context = this.getCursorContext();
     if (context) {
-      const edge = this.getCharEdge(charObj);
       context.globalCompositeOperation = 'copy';
       context.fillStyle = this.cursorColor;
       context.beginPath();
-      context.moveTo(edge.minX, edge.maxY);
-      context.lineTo(edge.maxX, edge.maxY);
-      context.lineTo(edge.maxX, edge.minY);
-      context.lineTo(edge.minX, edge.minY);
-      context.lineTo(edge.minX, edge.maxY);
+      context.moveTo(cursor.minX, cursor.maxY);
+      context.lineTo(cursor.maxX, cursor.maxY);
+      context.lineTo(cursor.maxX, cursor.minY);
+      context.lineTo(cursor.minX, cursor.minY);
+      context.lineTo(cursor.minX, cursor.maxY);
       context.closePath();
       context.fill();
     }
@@ -401,70 +411,6 @@ export class PseudoTerminalComponent {
     if (context) {
       context.clearRect(0, 0, this.scaledWidth, this.scaledHeight);
     }
-  }
-
-  /** 获取 cursor 图层 canvas 元素的 Canvas 2D Context */
-  private getCursorContext(): CanvasRenderingContext2D | undefined {
-    if (this.cursorRef) {
-      const ctx = this.cursorRef.nativeElement.getContext('2d');
-      if (ctx) {
-        return ctx;
-      }
-    }
-
-    return undefined;
-  }
-
-  /** 给定一组坐标 (x, y)，寻找距离此坐标最近的 CharObj */
-  private findCharObj(
-    x: number,
-    y: number,
-    chars: CharObject[]
-  ): { idx: number; char: CharObject } | undefined {
-    const findByYRange: { idx: number; char: CharObject }[] = [];
-    for (let idx = 0; idx < chars.length; idx++) {
-      const char = chars[idx];
-      const charEdge = this.getCharEdge(char);
-
-      if (y >= charEdge.minY && y <= charEdge.maxY) {
-        findByYRange.push({ idx, char });
-      }
-    }
-
-    if (findByYRange.length === 0) {
-      return undefined;
-    }
-
-    for (let i = 0; i < findByYRange.length; i++) {
-      const char = findByYRange[i].char;
-      const idx = findByYRange[i].idx;
-      const charEdge = this.getCharEdge(char);
-
-      if (x >= charEdge.minX && x <= charEdge.maxX) {
-        return { idx, char };
-      }
-    }
-
-    findByYRange.sort((a, b) => b.char.x - a.char.x);
-    return findByYRange[0];
-  }
-
-  /** 获取一个 CharEdge 的矩形域 */
-  private getCharEdge(charObj: CharObject): CharEdge {
-    // const minX = charObj.x + (charObj.dimension as any).actualBoundingBoxLeft;
-    const minX = charObj.x;
-    const maxX = minX + (charObj.dimension as any).width;
-    const minY = charObj.y - (charObj.dimension as any).fontBoundingBoxAscent;
-    const maxY = charObj.y + (charObj.dimension as any).fontBoundingBoxDescent;
-
-    return {
-      minX,
-      maxX,
-      maxY,
-      minY,
-      height: maxY - minY,
-      width: (charObj.dimension as any).width,
-    };
   }
 
   public handleBlur() {
@@ -479,6 +425,83 @@ export class PseudoTerminalComponent {
         this.keyboardEvent$.next(keyboardEvent);
       }
     );
+
+    this.showCursor();
+  }
+
+  private showCursor(): void {
+    const context = this.getCursorContext();
+    if (context) {
+      if (this.lastPrintCharObjects.length === 0) {
+        this.showCursorAtL1C1(context);
+      } else {
+        this.showCursorAtLastChar(context, this.lastPrintCharObjects);
+      }
+    }
+  }
+
+  private getDefaultCursor(cursorContext: CanvasRenderingContext2D): CursorShape {
+    const space = cursorContext.measureText(' ');
+    const cursor: CursorShape = {
+      minX: this.paddingLeft,
+      maxX: this.paddingLeft + space.width,
+      minY: this.paddingTop,
+      maxY: this.paddingTop + (space as any).fontBoundingBoxAscent + (space as any).fontBoundingBoxDescent,
+    };
+
+    return cursor;
+  }
+
+  private showCursorAtL1C1(cursorContext: CanvasRenderingContext2D): void {
+    this.paintCharCursor(this.getDefaultCursor(cursorContext));
+  }
+
+  private showCursorAtLastChar(cursorContext: CanvasRenderingContext2D, chars: CharObject[]): void {
+    const lastCharObj = chars[chars.length-1];
+    const lineFeed = this.getLineFeedContent();
+
+    // 获取 L1C1 处的 cursor
+    const cursor: CursorShape = this.getDefaultCursor(cursorContext);
+    const initX = cursor.minX;
+
+    // 平移它到 lastChar
+    const minXOfLastChar = lastCharObj.x + lastCharObj.geometry.actualBoundingBoxLeft;
+    const maxYOfLastChar = lastCharObj.y + lastCharObj.geometry.fontBoundingBoxDescent;
+    const xDisp = minXOfLastChar - cursor.minX;
+    const yDisp = maxYOfLastChar - cursor.maxY;
+    cursor.minX = cursor.minX + xDisp;
+    cursor.maxX = cursor.maxX + xDisp;
+    cursor.minY = cursor.minY + yDisp;
+    cursor.maxY = cursor.maxY + yDisp;
+
+    const cursorNewLine = (cursor: CursorShape) => {
+      const cursorHeight = cursor.maxY - cursor.minY;
+      cursor.minY = cursor.minY + cursorHeight;
+      cursor.maxY = cursor.maxY + cursorHeight;
+
+      const xDisp = cursor.minX - initX;
+      cursor.minX = cursor.minX - xDisp;
+      cursor.maxX = cursor.maxX - xDisp;
+    }
+
+    if (lineFeed === lastCharObj.content) {
+      // 最后一个字符是换行，那么换行
+      cursorNewLine(cursor);
+    }
+    else {
+      // 最后一个字符是正常字符，那么右移一位
+      const xDisp = cursor.maxX - cursor.minX;
+      cursor.minX = cursor.minX + xDisp;
+      cursor.maxX = cursor.maxX + xDisp;
+
+      // 如果溢出
+      if (cursor.minX > this.scaledWidth) {
+        // 那么换行
+        cursorNewLine(cursor);
+      }
+    }
+
+    this.paintCharCursor(cursor);
   }
 
   public prompt(content: string): void {
@@ -486,10 +509,6 @@ export class PseudoTerminalComponent {
     this.displayContent.prompt +
     this.displayContent.inputing +
     this.displayContent.displaying;
-
-    if (lastPrinted.length > 0) {
-      lastPrinted = lastPrinted + '\n';
-    }
 
     this.displayContent.printed = lastPrinted;
     
