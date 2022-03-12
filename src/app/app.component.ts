@@ -11,6 +11,9 @@ export class AppComponent {
 
   ngAfterViewInit(): void {
     this.pseudoTerminal?.prompt('In[0]:= ');
-    this.pseudoTerminal?.prompt('In[1]:= ');
+  }
+
+  handleTerminalFlush(inputContent: string): void {
+    console.log({ inputContent });
   }
 }

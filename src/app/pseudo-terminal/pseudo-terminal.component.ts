@@ -22,6 +22,7 @@ export class PseudoTerminalComponent {
   defaultFontFamily = 'Monaco';
   defaultLineFeed: LineFeed = 'LF';
   defaultWordWrapOption = true;
+  defaultFlushToken = ';';
 
   solarized = {
     $base03: '#002b36',
@@ -396,7 +397,18 @@ export class PseudoTerminalComponent {
 
       if (key === 'Enter') {
         this.insertInputContent('\n');
-        this.onFlush.emit(this.displayContent.inputing);
+        const inputContent = this.displayContent.inputing;
+        const trimmedInput = inputContent.trim();
+        const inputLen = trimmedInput.length;
+        const flushToken = this.defaultFlushToken;
+        const tokenLen = flushToken.length;
+        if (inputLen >= tokenLen) {
+          const inputTail = trimmedInput.slice(inputLen-tokenLen, inputLen);
+          if (inputTail === flushToken) {
+            const tokenRemoved = trimmedInput.slice(0, inputLen-tokenLen);
+            this.onFlush.emit(tokenRemoved);
+          }
+        }
       }
 
       if (key === 'ArrowLeft') {
