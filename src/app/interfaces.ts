@@ -43,13 +43,17 @@ export type CharObjectBasic = {
   offsetToLineStart: number;
 };
 
-export type CharObject = CharObjectBasic & {
-  /** 类型 */
-  type: 'normal';
+export type CharGroupType = 'printed' | 'prompt' | 'inputing' | 'displaying';
 
-  /** 文字的内容 */
+export type TaggedChar = {
+  /** 字符的内容 */
   content: string;
+
+  /** 组名称 */
+  groupName: CharGroupType;
 };
+
+export type CharObject = CharObjectBasic & TaggedChar;
 
 export type CharEdge = {
   minX: number;
@@ -60,8 +64,3 @@ export type CharEdge = {
   width: number;
 };
 
-export type DisplayContent = {
-  printed: string;
-  prompt: string;
-  inputing: string;
-};

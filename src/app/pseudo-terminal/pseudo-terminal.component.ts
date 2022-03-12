@@ -1,13 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, ElementRef, ViewChild } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { fromEvent, Observable, Subject, Subscription } from 'rxjs';
+import { FormControl } from '@angular/forms';
+import { fromEvent, Subject, Subscription } from 'rxjs';
 import {
   LineFeed,
   CharObject,
-  DisplayContent,
   CharGeometry,
   CharEdge,
+  CharGroupType,
+  TaggedChar,
 } from '../interfaces';
 
 @Component({
@@ -59,10 +60,11 @@ export class PseudoTerminalComponent {
   keyboardSubscription?: Subscription;
   keyboardEvent$ = new Subject<KeyboardEvent>();
 
-  private displayContent: DisplayContent = {
+  private displayContent: Record<CharGroupType, string> = {
     printed: '',
     prompt: '',
     inputing: '',
+    displaying: '',
   };
 
   @ViewChild('pseudoTerminalRef', { read: ElementRef })
@@ -100,51 +102,43 @@ export class PseudoTerminalComponent {
 
   /** 将文本内容拆分成一个 CharObject 数组 */
   private splitCharString(
-    lines: string[],
-    textContext: CanvasRenderingContext2D
+    content: TaggedChar[],
+    textContext: CanvasRenderingContext2D,
   ): CharObject[] {
     const charObjs: CharObject[] = [];
-    let globalOffset = 0;
-    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-      const content = lines[lineIdx];
-
-      let lineOffsetCounter = 0;
-      for (let lineOffset = 0; lineOffset < content.length; lineOffset++) {
-        const char = content[lineOffset];
-        const metric = textContext.measureText(char);
-        const charObj: CharObject = {
-          content: char,
-          type: 'normal',
-          dimension: metric,
-          x: 0,
-          y: 0,
-          lineNumber: lineIdx,
-          displayLineNumber: lineIdx,
-          offsetToFileStart: globalOffset,
-          offsetToLineStart: lineOffset,
-          geometry: this.getGeometry(metric),
-        };
-
-        charObjs.push(charObj);
-        globalOffset = globalOffset + 1;
-        lineOffsetCounter = lineOffsetCounter + 1;
-      }
-
-      const lineFeedContent = this.getLineFeedContent();
-      const metric = textContext.measureText(lineFeedContent);
-      charObjs.push({
-        content: lineFeedContent,
-        type: 'normal',
+    let windowPtr = 0;
+    const lineFeed = this.getLineFeedContent();
+    let windowSize = lineFeed.length;
+    let lineNumber = 0;
+    let lineBuffer = '';
+    while (windowPtr <= content.length-1) {
+      const window = content.slice(windowPtr, windowPtr + windowSize);
+      const windowContent = window.map(x => x.content).join('');
+      const windowHead = window[0];
+      const char = windowHead.content;
+      const groupName = windowHead.groupName;
+      const metric = textContext.measureText(char);
+      const charObj: CharObject = {
+        content: char,
         dimension: metric,
         x: 0,
         y: 0,
-        lineNumber: lineIdx,
-        displayLineNumber: lineIdx,
-        offsetToFileStart: globalOffset,
-        offsetToLineStart: lineOffsetCounter,
+        lineNumber: lineNumber,
+        displayLineNumber: lineNumber,
+        offsetToFileStart: windowPtr,
+        offsetToLineStart: lineBuffer.length,
         geometry: this.getGeometry(metric),
-      });
-      globalOffset = globalOffset + this.getLineFeedContent().length;
+        groupName: groupName,
+      };
+
+      if (windowContent === lineFeed) {
+        charObj.content = lineFeed;
+        lineNumber = lineNumber + 1;
+        lineBuffer = '';
+      }
+
+      charObjs.push(charObj);
+      windowPtr = windowPtr + charObj.content.length;
     }
 
     return charObjs;
@@ -235,10 +229,7 @@ export class PseudoTerminalComponent {
 
   /** 在 canvas 上显示一段文字 */
   private updateCanvasDisplay(): void {
-    const content =
-      this.displayContent.printed +
-      this.displayContent.prompt +
-      this.displayContent.inputing;
+    
     if (this.textCanvasRef) {
       const textCanvasElement = this.textCanvasRef.nativeElement;
       const textContext = textCanvasElement.getContext('2d');
@@ -248,7 +239,7 @@ export class PseudoTerminalComponent {
         textContext.font = `${scaledFontSize}px ${this.defaultFontFamily}`;
 
         this.displayCharObjects(
-          this.textContentToCharObjects(content, textContext),
+          this.textContentToCharObjects(textContext),
           textContext
         );
       }
@@ -257,15 +248,25 @@ export class PseudoTerminalComponent {
 
   /** 将一段文字转换成带几何信息的 CharObject[] */
   private textContentToCharObjects(
-    content: string,
     context: CanvasRenderingContext2D
   ): CharObject[] {
-    const charObjs: CharObject[] = this.splitCharString(
-      this.splitLineToLines(content),
-      context
-    );
+    const taggedChars: TaggedChar[] = [];
+    for (const s in this.displayContent) {
+      const groupName = s as CharGroupType;
+      const content = this.displayContent[groupName];
+      for (const char of content) {
+        taggedChars.push({
+          content: char,
+          groupName: groupName
+        });
+      }
+    }
+
+    const charObjs = this.splitCharString(taggedChars, context);
 
     this.calculateCharObjectGeometry(charObjs);
+
+    console.log({charObjs});
 
     return charObjs;
   }
@@ -350,6 +351,13 @@ export class PseudoTerminalComponent {
 
     // 在背景图层画背景颜色
     this.paintBackground();
+
+    this.keyboardEvent$.subscribe(event => {
+      // console.log(event);
+      const key = event.key;
+      const isDisplayable = (key: string) => /^[\u0009-\u000D\u0020-\u007E]$/.test(key);
+      console.log({ key: key, isDisplayable: isDisplayable(key) });
+    });
   }
 
   /** 响应鼠标点击事件 */
@@ -364,7 +372,6 @@ export class PseudoTerminalComponent {
     );
     this.clearCursor();
     if (charQuery) {
-      console.log(charQuery.char);
       this.strokeCharCursor(charQuery.char);
       this.currentHighlightCharIdx = charQuery.idx;
     }
@@ -477,7 +484,8 @@ export class PseudoTerminalComponent {
   public prompt(content: string): void {
     let lastPrinted = this.displayContent.printed +
     this.displayContent.prompt +
-    this.displayContent.inputing;
+    this.displayContent.inputing +
+    this.displayContent.displaying;
 
     if (lastPrinted.length > 0) {
       lastPrinted = lastPrinted + '\n';
