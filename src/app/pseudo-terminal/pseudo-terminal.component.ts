@@ -384,26 +384,65 @@ export class PseudoTerminalComponent {
     const isDisplayable = (key: string) => /^[\u0009-\u000D\u0020-\u007E]$/.test(key);
     console.log({ key: key, isDisplayable: isDisplayable(key) });
     if (isDisplayable(key)) {
-      this.displayContent.inputing = this.displayContent.inputing + key;
+      this.insertInputContent(key);
     }
     else {
       if (key === 'Backspace') {
         const currentInputLength = this.displayContent.inputing.length;
         if (currentInputLength >= 1) {
-          this.displayContent.inputing = this.displayContent.inputing.slice(0, currentInputLength-1);
+          this.deleteInputingContent();
         }
       }
 
       if (key === 'Enter') {
-        this.displayContent.inputing = this.displayContent.inputing + '\n';
+        this.insertInputContent('\n');
         this.onFlush.emit(this.displayContent.inputing);
+      }
+
+      if (key === 'ArrowLeft') {
+        if (this.cursorOffset < this.displayContent.inputing.length) {
+          this.cursorOffset = this.cursorOffset + 1;
+        }
+      }
+
+      if (key === 'ArrowRight') {
+        if (this.cursorOffset > 0) {
+          this.cursorOffset = this.cursorOffset - 1;
+        }
       }
     }
 
     this.updateScreen();
   }
 
-  /** 更新各个 canvas 显示内容，使其与 ViewModel 一致 */
+  /** 参考 cursorOffset 的值，在恰当的位置插入输入 */
+  private insertInputContent(content: string): void {
+    const cursorOffset = this.cursorOffset;
+    const currentInputing = this.displayContent.inputing;
+    const len = currentInputing.length;
+    const leftPart = currentInputing.slice(0, len - cursorOffset);
+    const rightPart = currentInputing.slice(len - cursorOffset, len);
+    this.displayContent.inputing = leftPart + content + rightPart;
+  }
+
+  /** 参考 cursorOffset 的值，在恰当的位置删除字符 */
+  private deleteInputingContent(): void {
+    const cursorOffset = this.cursorOffset;
+    const currentInputing = this.displayContent.inputing;
+    const len = currentInputing.length;
+    let leftPart = currentInputing.slice(0, len - cursorOffset);
+    const rightPart = currentInputing.slice(len - cursorOffset, len);
+    if (leftPart.length > 0) {
+      leftPart = leftPart.slice(0, leftPart.length-1);
+    }
+    this.displayContent.inputing = leftPart + rightPart;
+  }
+
+  /** 
+   * 更新各个 canvas 显示内容，使其与 ViewModel 一致 
+   * 
+   * updateTextDisplay() 一定要执行在 updateCursorPosition 之前
+   */
   private updateScreen(): void {
     this.updateTextDisplay();
     this.updateCursorPosition();
@@ -465,7 +504,7 @@ export class PseudoTerminalComponent {
       if (this.lastPrintCharObjects.length === 0) {
         cursor = this.getCursorAtL1C1(context);
       } else {
-        cursor = this.getCursorAtLastChar(context, this.lastPrintCharObjects);
+        cursor = this.getCursorAtLastChar(context, this.lastPrintCharObjects, this.cursorOffset);
       }
 
       this.paintCursor(cursor);
@@ -490,9 +529,9 @@ export class PseudoTerminalComponent {
     return this.getDefaultCursor(cursorContext);
   }
 
-  /** 获取最后一个文字后边的 cursor */
-  private getCursorAtLastChar(cursorContext: CanvasRenderingContext2D, chars: CharObject[]): CursorShape {
-    const lastCharObj = chars[chars.length-1];
+  /** 获取最后一个文字后边的 cursor, 加上向左的偏移量 cursorOffset */
+  private getCursorAtLastChar(cursorContext: CanvasRenderingContext2D, chars: CharObject[], cursorOffset: number): CursorShape {
+    const lastCharObj = chars[chars.length-1-cursorOffset];
     const lineFeed = this.getLineFeedContent();
 
     // 获取 L1C1 处的 cursor
