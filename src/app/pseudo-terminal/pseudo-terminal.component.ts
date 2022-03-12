@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Output, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { fromEvent, Subject, Subscription } from 'rxjs';
 import {
@@ -51,15 +51,22 @@ export class PseudoTerminalComponent {
   paddingTop = 10;
   paddingRight = 10;
   wordWrap = false;
+
   originWidth = 0;
   originHeight = 0;
   scaledWidth = 0;
   scaledHeight = 0;
-  lastPrintCharObjects: CharObject[] = [];
+  
   currentHighlightCharIdx?: number;
   inputTextCtrl = new FormControl(null);
   keyboardSubscription?: Subscription;
   keyboardEvent$ = new Subject<KeyboardEvent>();
+
+  lastPrintCharObjects: CharObject[] = [];
+  lastPaintCursor?: CursorShape;
+
+  /** cursor 距离正常位置的差距, 具体为正常 cursor 的 x 减去现在 cursor 的 x */
+  cursorOffset = 0;
 
   private segmentsOrder: CharGroupType[] = [
     'printed', 'prompt', 'inputing', 'displaying',
@@ -82,6 +89,9 @@ export class PseudoTerminalComponent {
 
   @ViewChild('cursorRef', { read: ElementRef })
   cursorRef?: ElementRef<HTMLCanvasElement>;
+
+  @Output()
+  onFlush = new EventEmitter<string>();
 
   constructor(private httpClient: HttpClient) {}
 
@@ -250,7 +260,7 @@ export class PseudoTerminalComponent {
 
 
   /** 在 canvas 上显示一段文字 */
-  private updateCanvasDisplay(): void {
+  private updateTextDisplay(): void {
     const textContext = this.getTextContext();
     if (textContext) {
       this.displayCharObjects(
@@ -363,33 +373,44 @@ export class PseudoTerminalComponent {
     // 在背景图层画背景颜色
     this.paintBackground();
 
+    // 视图初始化之后开始响应并处理键盘敲击事件
     this.keyboardEvent$.subscribe(event => {
-      // console.log(event);
-      const key = event.key;
-      const isDisplayable = (key: string) => /^[\u0009-\u000D\u0020-\u007E]$/.test(key);
-      console.log({ key: key, isDisplayable: isDisplayable(key) });
+      this.processKeyboardEvent(event);
     });
   }
 
-  /** 响应鼠标点击事件 */
-  handleClick(event: Event): void {
-    // const x = (event as MouseEvent).offsetX;
-    // const y = (event as MouseEvent).offsetY;
-    // this.currentHighlightCharIdx = undefined;
-    // const charQuery = this.findCharObj(
-    //   x * this.scaleRatio,
-    //   y * this.scaleRatio,
-    //   this.lastPrintCharObjects
-    // );
-    // this.clearCursor();
-    // if (charQuery) {
-    //   this.strokeCharCursor(charQuery.char);
-    //   this.currentHighlightCharIdx = charQuery.idx;
-    // }
+  private processKeyboardEvent(event: KeyboardEvent): void {
+    const key = event.key;
+    const isDisplayable = (key: string) => /^[\u0009-\u000D\u0020-\u007E]$/.test(key);
+    console.log({ key: key, isDisplayable: isDisplayable(key) });
+    if (isDisplayable(key)) {
+      this.displayContent.inputing = this.displayContent.inputing + key;
+    }
+    else {
+      if (key === 'Backspace') {
+        const currentInputLength = this.displayContent.inputing.length;
+        if (currentInputLength >= 1) {
+          this.displayContent.inputing = this.displayContent.inputing.slice(0, currentInputLength-1);
+        }
+      }
+
+      if (key === 'Enter') {
+        this.displayContent.inputing = this.displayContent.inputing + '\n';
+        this.onFlush.emit(this.displayContent.inputing);
+      }
+    }
+
+    this.updateScreen();
+  }
+
+  /** 更新各个 canvas 显示内容，使其与 ViewModel 一致 */
+  private updateScreen(): void {
+    this.updateTextDisplay();
+    this.updateCursorPosition();
   }
 
   /** 在指定的位置绘制 cursor */
-  private paintCharCursor(cursor: CursorShape): void {
+  private paintCursor(cursor: CursorShape): void {
     const context = this.getCursorContext();
     if (context) {
       context.globalCompositeOperation = 'copy';
@@ -402,6 +423,7 @@ export class PseudoTerminalComponent {
       context.lineTo(cursor.minX, cursor.maxY);
       context.closePath();
       context.fill();
+      this.lastPaintCursor = cursor;
     }
   }
 
@@ -413,12 +435,17 @@ export class PseudoTerminalComponent {
     }
   }
 
+  /** 失焦事件处理 */
   public handleBlur() {
+    // 取消监听键盘事件
     this.keyboardSubscription?.unsubscribe();
+
     this.clearCursor();
   }
 
+  /** 聚焦事件处理 */
   public handleFocus() {
+    // 开始监听键盘敲击事件
     this.keyboardSubscription = fromEvent(window, 'keydown').subscribe(
       (event) => {
         const keyboardEvent = event as KeyboardEvent;
@@ -426,20 +453,26 @@ export class PseudoTerminalComponent {
       }
     );
 
-    this.showCursor();
+    // 显示 cursor
+    this.updateCursorPosition();
   }
 
-  private showCursor(): void {
+  /** 在恰当的位置显示 cursor */
+  private updateCursorPosition(): void {
     const context = this.getCursorContext();
+    let cursor: CursorShape;
     if (context) {
       if (this.lastPrintCharObjects.length === 0) {
-        this.showCursorAtL1C1(context);
+        cursor = this.getCursorAtL1C1(context);
       } else {
-        this.showCursorAtLastChar(context, this.lastPrintCharObjects);
+        cursor = this.getCursorAtLastChar(context, this.lastPrintCharObjects);
       }
+
+      this.paintCursor(cursor);
     }
   }
 
+  /** 获取默认 cursor, 当前的默认 cursor 是第一行第一列的 cursor, 长宽为一个空格的长宽 */
   private getDefaultCursor(cursorContext: CanvasRenderingContext2D): CursorShape {
     const space = cursorContext.measureText(' ');
     const cursor: CursorShape = {
@@ -452,11 +485,13 @@ export class PseudoTerminalComponent {
     return cursor;
   }
 
-  private showCursorAtL1C1(cursorContext: CanvasRenderingContext2D): void {
-    this.paintCharCursor(this.getDefaultCursor(cursorContext));
+  /** 获取第一行第一列的 cursor */
+  private getCursorAtL1C1(cursorContext: CanvasRenderingContext2D): CursorShape {
+    return this.getDefaultCursor(cursorContext);
   }
 
-  private showCursorAtLastChar(cursorContext: CanvasRenderingContext2D, chars: CharObject[]): void {
+  /** 获取最后一个文字后边的 cursor */
+  private getCursorAtLastChar(cursorContext: CanvasRenderingContext2D, chars: CharObject[]): CursorShape {
     const lastCharObj = chars[chars.length-1];
     const lineFeed = this.getLineFeedContent();
 
@@ -501,7 +536,7 @@ export class PseudoTerminalComponent {
       }
     }
 
-    this.paintCharCursor(cursor);
+    return cursor;
   }
 
   public prompt(content: string): void {
@@ -513,6 +548,6 @@ export class PseudoTerminalComponent {
     this.displayContent.printed = lastPrinted;
     
     this.displayContent.prompt = content;
-    this.updateCanvasDisplay();
+    this.updateTextDisplay();
   }
 }
