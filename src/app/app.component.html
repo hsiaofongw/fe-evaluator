@@ -1,48 +1,52 @@
-<div class="session-select-and-create">
+<div class="page-outer-container">
+  <div class="page-container">
+    <div class="session-select-and-create">
 
-<nz-select
-  [style]="{ width: '360px' }"
-  nzAllowClear
-  nzPlaceHolder="请选择 Session"
->
-  <nz-option
-    *ngFor="let evaluator of evaluators; let i = index"
-    nzCustomContent
-    [nzValue]="i"
-    [nzDisabled]="!evaluator.topicId"
-  >
-    <div
-      nz-popover
-      [nzPopoverContent]="popoverTpl"
-      nzPopoverPlacement="rightTop"
-      (mouseenter)="handleMouseEnter(evaluator)"
-      (mouseout)="handleMouseOut()"
-      class="option-item-container"
+    <nz-select
+      [style]="{ width: '400px' }"
+      nzAllowClear
+      nzPlaceHolder="请选择 Session"
+      [formControl]="sessionSelectForm"
     >
-      <i *ngIf="!evaluator.topicId" nz-icon nzType="loading" nzTheme="outline"></i>
-      <span>{{ evaluator.name }}</span>
+      <nz-option
+        *ngFor="let evaluator of evaluators; let i = index"
+        nzCustomContent
+        [nzValue]="i"
+        [nzLabel]="evaluator.name"
+        [nzDisabled]="!evaluator.topicId"
+      >
+        <div
+          nz-popover
+          [nzPopoverContent]="popoverTpl"
+          nzPopoverPlacement="rightTop"
+          (mouseenter)="handleMouseEnter(evaluator)"
+          (mouseout)="handleMouseOut()"
+          class="option-item-container"
+        >
+          <i *ngIf="!evaluator.topicId" nz-icon nzType="loading" nzTheme="outline"></i>
+          <span>{{ evaluator.name }}</span>
+        </div>
+      </nz-option>
+    </nz-select>
+
+    <button nz-button (click)="handleWindowCreateButtonClick()">创建 Evaluate Session</button>
+
     </div>
-  </nz-option>
-</nz-select>
 
-<button nz-button (click)="handleWindowCreateButtonClick()">创建 Evaluate Session</button>
+    <ng-template #popoverTpl>
+      <div class="popover-container">
+        <ng-container *ngFor="let pair of keyValuePairs">
+          <div class="item"><span>{{ pair[0] }}</span></div>
+          <div class="value">{{ pair[1] }}</div>
+        </ng-container>
+      </div>
+    </ng-template>
 
+    <div *ngIf="sessionSelectForm.valid">
+      <app-pseudo-terminal (onFlush)="handleTerminalFlush($event)"></app-pseudo-terminal>
+    </div>
+  </div>
 </div>
-
-<ng-template #popoverTpl>
-  <div class="popover-container">
-    <ng-container *ngFor="let pair of keyValuePairs">
-      <div class="item"><span>{{ pair[0] }}</span></div>
-      <div class="value">{{ pair[1] }}</div>
-    </ng-container>
-  </div>
-</ng-template>
-
-<!-- <div class="grid">
-  <div>
-    <app-pseudo-terminal (onFlush)="handleTerminalFlush($event)"></app-pseudo-terminal>
-  </div>
-</div> -->
 
 <nz-modal
   [nzVisible]="isCreationWindowVisible"

@@ -9,6 +9,7 @@ import { EvaluateSessionFormComponent } from './evaluate-session-form/evaluate-s
 import { EvaluateService, Evaluator } from './evaluate.service';
 import { PseudoTerminalComponent } from './pseudo-terminal/pseudo-terminal.component';
 import { format } from 'date-fns';
+import { FormControl, Validators } from '@angular/forms';
 
 type KeyValuePair = [string, string];
 
@@ -23,6 +24,7 @@ export class AppComponent {
   isCreationWindowVisible = false;
   isCreationWindowValid = false;
   keyValuePairs: KeyValuePair[] = [];
+  sessionSelectForm = new FormControl(null, [Validators.required]);
 
   @ViewChild(PseudoTerminalComponent) pseudoTerminal?: PseudoTerminalComponent;
   @ViewChild(EvaluateSessionFormComponent) evaluateSessionFormComponent?: EvaluateSessionFormComponent;
@@ -33,8 +35,10 @@ export class AppComponent {
     this.pseudoTerminal?.prompt('In[0]:= ');
 
     const defaultEvaluator = new Evaluator('http://localhost:3000', this.evaluateService, '默认会话');
-    defaultEvaluator.initialize().subscribe();
-    this.evaluators.push(defaultEvaluator);
+    defaultEvaluator.initialize().subscribe(() => {
+      this.evaluators.push(defaultEvaluator);
+      this.sessionSelectForm.setValue(0);
+    });
   }
 
   handleTerminalFlush(inputContent: string): void {

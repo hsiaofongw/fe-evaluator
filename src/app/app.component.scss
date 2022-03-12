@@ -1,8 +1,14 @@
+.page-outer-container {
+  display: flex;
+  align-items: center;
+  height: 100vh;
+  justify-content: center;
 
-.grid {
-  display: grid;
-  grid-template-columns: max-content;
-  row-gap: 10px;
+  .page-container {
+    display: grid;
+    grid-template-columns: max-content;
+    row-gap: 20px;
+  }
 }
 
 .popover-container {
@@ -18,7 +24,7 @@
   }
 
   .item::after {
-    content: ':';
+    content: ":";
   }
 
   .value {
