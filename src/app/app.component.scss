@@ -4,3 +4,31 @@
   grid-template-columns: max-content;
   row-gap: 10px;
 }
+
+.popover-container {
+  width: auto;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  row-gap: 10px;
+  column-gap: 10px;
+
+  .item {
+    justify-self: left;
+  }
+
+  .item::after {
+    content: ':';
+  }
+
+  .value {
+    justify-self: right;
+    font-family: Monaco, Menlo, monospace;
+  }
+}
+
+.session-select-and-create {
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+}

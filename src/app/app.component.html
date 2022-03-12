@@ -1,5 +1,55 @@
-<div class="grid">
+<div class="session-select-and-create">
+
+<nz-select
+  [style]="{ width: '360px' }"
+  nzAllowClear
+  nzPlaceHolder="请选择 Session"
+>
+  <nz-option
+    *ngFor="let evaluator of evaluators; let i = index"
+    nzCustomContent
+    [nzValue]="i"
+  >
+    <div
+      nz-popover
+      [nzPopoverContent]="popoverTpl"
+      nzPopoverPlacement="rightTop"
+      (mouseenter)="handleMouseEnter(evaluator)"
+      (mouseout)="handleMouseOut()"
+    >
+      {{ evaluator.name }}
+    </div>
+  </nz-option>
+</nz-select>
+
+<button nz-button (click)="handleWindowCreateButtonClick()">创建 Evaluate Session</button>
+
+</div>
+
+<ng-template #popoverTpl>
+  <div class="popover-container">
+    <ng-container *ngFor="let pair of keyValuePairs">
+      <div class="item"><span>{{ pair[0] }}</span></div>
+      <div class="value">{{ pair[1] }}</div>
+    </ng-container>
+  </div>
+</ng-template>
+
+<!-- <div class="grid">
   <div>
     <app-pseudo-terminal (onFlush)="handleTerminalFlush($event)"></app-pseudo-terminal>
   </div>
-</div>
+</div> -->
+
+<nz-modal
+  [nzVisible]="isCreationWindowVisible"
+  nzTitle="创建一个 Evaluate Session"
+  (nzOnCancel)="handleWindowCancel()"
+  (nzOnOk)="handleWindowOk()"
+  nzClassName="my-evaluate-session-creation-modal"
+  [nzOkDisabled]="!isCreationWindowValid"
+>
+  <ng-container *nzModalContent>
+    <app-evaluate-session-form (onValidityChange)="isCreationWindowValid=$event"></app-evaluate-session-form>
+  </ng-container>
+</nz-modal>

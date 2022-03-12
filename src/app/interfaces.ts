@@ -88,3 +88,8 @@ export interface IPublicOutputObject {
   exprContent: string;
   seqNum: number;
 }
+
+export type EvaluateSessionCreationConfig = {
+  serverAddr: string;
+  friendlyName?: string;
+}

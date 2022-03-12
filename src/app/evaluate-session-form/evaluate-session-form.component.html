@@ -1,0 +1,9 @@
+<form class="form" [formGroup]="form">
+  <!-- 服务器地址 -->
+    <nz-form-label class="label" nzRequired>服务器地址</nz-form-label>
+    <input formControlName="serverAddr" nz-input placeholder="请输入服务器的完整地址，例如：http://example.com" />
+
+  <!-- 别名 -->
+    <nz-form-label class="label">会话别名</nz-form-label>
+    <input formControlName="friendlyName" nz-input placeholder="可在此处输入会话别名" />
+</form>
