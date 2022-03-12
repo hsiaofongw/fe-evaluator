@@ -1,4 +1,9 @@
 /* You can add global styles to this file, and also import other style files */
+$base3: #fdf6e3;
+
+body {
+  background-color: $base3;
+}
 
 .my-evaluate-session-creation-modal {
   width: 600px !important;
