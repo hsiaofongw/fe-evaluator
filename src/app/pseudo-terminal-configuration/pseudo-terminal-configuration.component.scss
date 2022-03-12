@@ -1,0 +1,33 @@
+@use '../solarized-base';
+
+.form {
+  .item {
+    display: flex;
+    align-items: center;
+    column-gap: 10px;
+    justify-content: space-between;
+    padding: 4px 0px;
+
+    .label {
+      display: inline;
+    }
+
+    .label::after {
+      content: ":";
+    }
+
+    .radio-control {
+      display: inline-flex;
+      align-items: center;
+      column-gap: 10px;
+
+      * {
+        cursor: pointer;
+      }
+    }
+  }
+
+  .item:hover {
+    background-color: #83959644;
+  }
+}

@@ -5,10 +5,14 @@ import { BrowserModule } from '@angular/platform-browser';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { HttpClientModule } from '@angular/common/http';
+import { PseudoTerminalComponent } from './pseudo-terminal/pseudo-terminal.component';
+import { PseudoTerminalConfigurationComponent } from './pseudo-terminal-configuration/pseudo-terminal-configuration.component';
 
 @NgModule({
   declarations: [
-    AppComponent
+    AppComponent,
+    PseudoTerminalComponent,
+    PseudoTerminalConfigurationComponent
   ],
   imports: [
     BrowserModule,

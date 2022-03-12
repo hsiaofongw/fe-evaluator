@@ -1,28 +1,5 @@
 <div class="grid">
-<div>
-<form class="form">
-  <div class="item">
-    <label class="label">WordWrap 选项</label>
-    <div class="control radio-control" [formGroup]="modeForm">
-      <div>
-        <input id="true-opt" [value]="true" name="wordWrap" type="radio"  [formControl]="wordWrapCtrl">
-        <label for="true-opt">是</label>
-      </div>
-      <div>
-        <input id="false-opt" [value]="false" name="wordWrap" type="radio"[formControl]="wordWrapCtrl">
-        <label for="false-opt">否</label>
-      </div>
-    </div>
+  <div>
+    <app-pseudo-terminal></app-pseudo-terminal>
   </div>
-</form>
-</div>
-<div class="screen-container">
-  <div class="pseudo-terminal-container">
-    <div (focus)="handleFocus()" (blur)="handleBlur()" tabindex="0" class="pseudo-terminal" #pseudoTerminalRef (click)="handleClick($event)">
-      <canvas class="canvas" #backgroundCanvasRef></canvas>
-      <canvas class="canvas" #textCanvasRef></canvas>
-      <canvas class="canvas" #cursorRef></canvas>
-    </div>
-  </div>
-</div>
 </div>

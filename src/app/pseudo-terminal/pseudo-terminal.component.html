@@ -1,0 +1,16 @@
+<div class="screen-container">
+  <div class="pseudo-terminal-container">
+    <div
+      (focus)="handleFocus()"
+      (blur)="handleBlur()"
+      tabindex="0"
+      class="pseudo-terminal"
+      #pseudoTerminalRef
+      (click)="handleClick($event)"
+    >
+      <canvas class="canvas" #backgroundCanvasRef></canvas>
+      <canvas class="canvas" #textCanvasRef></canvas>
+      <canvas class="canvas" #cursorRef></canvas>
+    </div>
+  </div>
+</div>
