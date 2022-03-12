@@ -383,7 +383,7 @@ export class PseudoTerminalComponent {
   private processKeyboardEvent(event: KeyboardEvent): void {
     const key = event.key;
     const isDisplayable = (key: string) => /^[\u0009-\u000D\u0020-\u007E]$/.test(key);
-    console.log({ key: key, isDisplayable: isDisplayable(key) });
+
     if (isDisplayable(key)) {
       this.insertInputContent(key);
     }
@@ -590,15 +590,34 @@ export class PseudoTerminalComponent {
     return cursor;
   }
 
+  /** 提示用户输入 */
   public prompt(content: string): void {
     let lastPrinted = this.displayContent.printed +
-    this.displayContent.prompt +
-    this.displayContent.inputing +
-    this.displayContent.displaying;
+      this.displayContent.prompt +
+      this.displayContent.inputing +
+      this.displayContent.displaying;
 
     this.displayContent.printed = lastPrinted;
-    
     this.displayContent.prompt = content;
-    this.updateTextDisplay();
+    this.displayContent.inputing = '';
+    this.displayContent.displaying = '';
+
+    this.updateScreen();
+  }
+
+  /** 打印 */
+  public print(content: string): void {
+    const disp = this.displayContent;
+    disp.printed = disp.printed + disp.prompt;
+    disp.printed = disp.printed + disp.inputing;
+    disp.printed = disp.printed + disp.displaying;
+    disp.printed = disp.printed + content;
+
+    disp.displaying = '';
+    disp.inputing = '';
+    disp.prompt = '';
+
+    // 打印状态下用户不可以输入
+    this.updateScreen();
   }
 }

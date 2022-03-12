@@ -10,6 +10,7 @@ import { EvaluateService, Evaluator } from './evaluate.service';
 import { PseudoTerminalComponent } from './pseudo-terminal/pseudo-terminal.component';
 import { format } from 'date-fns';
 import { FormControl, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 
 type KeyValuePair = [string, string];
 
@@ -20,29 +21,65 @@ type KeyValuePair = [string, string];
 })
 export class AppComponent {
 
+  defaultSessionServerAddr = 'http://localhost:3000';
+  defaultSessionAlias = '默认会话';
   evaluators: Evaluator[] = [];
   isCreationWindowVisible = false;
   isCreationWindowValid = false;
   keyValuePairs: KeyValuePair[] = [];
   sessionSelectForm = new FormControl(null, [Validators.required]);
 
+  private get activeEvaluator(): Evaluator {
+    return this.evaluators[this.sessionSelectForm.value];
+  }
+
   @ViewChild(PseudoTerminalComponent) pseudoTerminal?: PseudoTerminalComponent;
   @ViewChild(EvaluateSessionFormComponent) evaluateSessionFormComponent?: EvaluateSessionFormComponent;
 
-  constructor(private evaluateService: EvaluateService) {}
+  constructor(private evaluateService: EvaluateService, private route: ActivatedRoute) {}
+
+  ngOnInit(): void {
+    this.route.queryParams.subscribe(queryParams => {
+      const qDefaultSessionServerAddr = queryParams['defaultSessionServerAddr'];
+      const qDefaultSessionAlias = queryParams['defaultSessionAlias'];
+      if (typeof qDefaultSessionServerAddr === 'string' && qDefaultSessionServerAddr.length > 0) {
+        this.defaultSessionServerAddr = qDefaultSessionServerAddr;
+      }
+
+      if (typeof qDefaultSessionAlias === 'string' && qDefaultSessionAlias.length > 0) {
+        this.defaultSessionAlias = qDefaultSessionAlias;
+      }
+    });
+  }
 
   ngAfterViewInit(): void {
-    this.pseudoTerminal?.prompt('In[0]:= ');
+    const defaultEvaluator = new Evaluator(this.defaultSessionServerAddr, this.evaluateService, this.defaultSessionAlias);
+    defaultEvaluator.initialize().subscribe((dto) => {
+      if (dto.topicId) {
+        this.evaluators.push(defaultEvaluator);
+        this.sessionSelectForm.setValue(0);
 
-    const defaultEvaluator = new Evaluator('http://localhost:3000', this.evaluateService, '默认会话');
-    defaultEvaluator.initialize().subscribe(() => {
-      this.evaluators.push(defaultEvaluator);
-      this.sessionSelectForm.setValue(0);
+        const seqNum = dto.initialSeqNum;
+        window.setTimeout(() => {
+          this.pseudoTerminal?.prompt(`In[${seqNum}]:= `);
+        });
+      }
     });
   }
 
   handleTerminalFlush(inputContent: string): void {
-    console.log({ inputContent });
+    const evaluator = this.activeEvaluator;
+    console.log({ evaluator, inputContent });
+    evaluator.evaluate(inputContent.trim()).subscribe(ans => {
+      this.pseudoTerminal?.print('\n');
+      const outputPrompt = `Out[${ans.seqNum}]= `;
+      this.pseudoTerminal?.print(outputPrompt);
+      this.pseudoTerminal?.print(ans.exprContent);
+      this.pseudoTerminal?.print('\n\n');
+      this.pseudoTerminal?.prompt(`In[${evaluator.seqNum}]:= `);
+      console.log({ ans });
+      console.log(evaluator.seqNum);
+    })
   }
 
   handleMouseEnterOpt(opt: string): void {
