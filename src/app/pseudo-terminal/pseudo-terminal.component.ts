@@ -18,7 +18,7 @@ import {
   styleUrls: ['./pseudo-terminal.component.scss'],
 })
 export class PseudoTerminalComponent {
-  defaultFontSize = 14;
+  defaultFontSize = 12;
   defaultFontFamily = 'Monaco';
   defaultLineFeed: LineFeed = 'LF';
   defaultWordWrapOption = true;
