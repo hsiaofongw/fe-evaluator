@@ -69,7 +69,6 @@ export class AppComponent {
 
   handleTerminalFlush(inputContent: string): void {
     const evaluator = this.activeEvaluator;
-    console.log({ evaluator, inputContent });
     evaluator.evaluate(inputContent.trim()).subscribe(ans => {
       this.pseudoTerminal?.print('\n');
       const outputPrompt = `Out[${ans.seqNum}]= `;
@@ -77,8 +76,6 @@ export class AppComponent {
       this.pseudoTerminal?.print(ans.exprContent);
       this.pseudoTerminal?.print('\n\n');
       this.pseudoTerminal?.prompt(`In[${evaluator.seqNum}]:= `);
-      console.log({ ans });
-      console.log(evaluator.seqNum);
     })
   }
 
