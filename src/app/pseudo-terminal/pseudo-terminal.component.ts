@@ -644,7 +644,20 @@ export class PseudoTerminalComponent {
 
   /** 恢复状态 */
   public load(displayContentJSON: string): void {
+    this.cursorOffset = 0;
     this.displayContent = JSON.parse(displayContentJSON);
     this.updateScreen();
   }
+
+  /** 清空状态 */
+  public clear(): void {
+    this.displayContent.displaying = '';
+    this.displayContent.prompt = '';
+    this.displayContent.inputing = '';
+    this.displayContent.printed = '';
+    this.cursorOffset = 0;
+
+    this.updateScreen();
+  }
+
 }

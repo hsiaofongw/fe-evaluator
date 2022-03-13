@@ -6,7 +6,7 @@
       [style]="{ width: '100%' }"
       nzAllowClear
       nzPlaceHolder="请选择 Session"
-      [formControl]="sessionSelectForm"
+      [formControl]="sessionSelectCtrl"
     >
       <nz-option
         *ngFor="let evaluator of evaluators; let i = index"
@@ -43,7 +43,7 @@
     </ng-template>
 
     <div [style]="{ width: '680px' }">
-    <div *ngIf="sessionSelectForm.valid">
+    <div *ngIf="sessionSelectCtrl.valid">
       <app-pseudo-terminal (onFlush)="handleTerminalFlush($event)"></app-pseudo-terminal>
     </div>
     </div>
