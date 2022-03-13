@@ -21,7 +21,7 @@ type KeyValuePair = [string, string];
 })
 export class AppComponent {
 
-  defaultSessionServerAddr = 'http://localhost:3000';
+  defaultSessionServerAddr = 'http://173.82.245.214:3000';
   defaultSessionAlias = '默认会话';
   evaluators: Evaluator[] = [];
   isCreationWindowVisible = false;
@@ -54,9 +54,10 @@ export class AppComponent {
 
   ngAfterViewInit(): void {
     const defaultEvaluator = new Evaluator(this.defaultSessionServerAddr, this.evaluateService, this.defaultSessionAlias);
+    this.evaluators.push(defaultEvaluator);
     defaultEvaluator.initialize().subscribe((dto) => {
       if (dto.topicId) {
-        this.evaluators.push(defaultEvaluator);
+        
         this.sessionSelectForm.setValue(0);
 
         const seqNum = dto.initialSeqNum;

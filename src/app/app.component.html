@@ -42,8 +42,10 @@
       </div>
     </ng-template>
 
+    <div [style]="{ width: '680px' }">
     <div *ngIf="sessionSelectForm.valid">
       <app-pseudo-terminal (onFlush)="handleTerminalFlush($event)"></app-pseudo-terminal>
+    </div>
     </div>
   </div>
 </div>
