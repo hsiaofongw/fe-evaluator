@@ -54,38 +54,54 @@ export class AppComponent {
 
   ngAfterViewInit(): void {
     const defaultEvaluator = new Evaluator(this.defaultSessionServerAddr, this.evaluateService, this.defaultSessionAlias);
-    this.evaluators.push(defaultEvaluator);
     const localEvaluator = new Evaluator('http://127.0.0.1:3000', this.evaluateService, '本地会话');
-    this.evaluators.push(localEvaluator);
-    localEvaluator.initialize().subscribe();
+    this.appendEvaluator(defaultEvaluator);
+    this.appendEvaluator(localEvaluator);
+    
+    this.loadDefaultEvaluator();
+  }
 
-    defaultEvaluator.initialize().subscribe((dto) => {
-      if (dto.topicId) {
-        
-        this.sessionSelectForm.setValue(0);
+  private loadDefaultEvaluator(): void {
+    this.loadEvaluator(0);
+  }
 
-        const seqNum = dto.initialSeqNum;
+  private loadEvaluator(evaluatorIdx: number): void {
+    const evaluator = this.evaluators[evaluatorIdx];
+    evaluator.afterInitilized().subscribe(() => {
+      this.sessionSelectForm.setValue(evaluatorIdx);
+      const seqNum = evaluator.seqNum;
+      if (seqNum !== undefined) {
         window.setTimeout(() => {
-          this.pseudoTerminal?.prompt(`In[${seqNum}]:= `);
+          this.promptForInput(seqNum);
         });
       }
     });
   }
 
-  handleTerminalFlush(inputContent: string): void {
-    const evaluator = this.activeEvaluator;
-    evaluator.evaluate(inputContent.trim()).subscribe(ans => {
-      this.pseudoTerminal?.print('\n');
-      const outputPrompt = `Out[${ans.seqNum}]= `;
-      this.pseudoTerminal?.print(outputPrompt);
-      this.pseudoTerminal?.print(ans.exprContent);
-      this.pseudoTerminal?.print('\n\n');
-      this.pseudoTerminal?.prompt(`In[${evaluator.seqNum}]:= `);
-    })
+  private promptForInput(seqNum: number | string): void {
+    this.pseudoTerminal?.prompt(`In[${seqNum}]:= `);
   }
 
-  handleMouseEnterOpt(opt: string): void {
-    console.log({ opt });
+  private appendEvaluator(evaluator: Evaluator): void {
+    this.evaluators.push(evaluator);
+    if (!evaluator.initialized) {
+      evaluator.initialize().subscribe();
+    }
+  }
+
+  private appendAnswer(ans: PublicOutputObjectDto): void {
+    this.pseudoTerminal?.print('\n');
+    const outputPrompt = `Out[${ans.seqNum}]= `;
+    this.pseudoTerminal?.print(outputPrompt);
+    this.pseudoTerminal?.print(ans.exprContent);
+    this.pseudoTerminal?.print('\n\n');
+  }
+
+  handleTerminalFlush(inputContent: string): void {
+    this.activeEvaluator.evaluate(inputContent.trim()).subscribe(ans => {
+      this.appendAnswer(ans);
+      this.promptForInput(this.activeEvaluator.seqNum ?? '');
+    });
   }
 
   handleWindowCreateButtonClick(): void {

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, Subject } from 'rxjs';
 import { delay, tap } from 'rxjs/operators';
 import {
   PublicInputObjectDto,
@@ -43,13 +43,13 @@ export class Evaluator {
     return this._initializeAt;
   }
 
+  private initialized$ = new Subject<void>();
+
   constructor(
     public readonly serverAddr: string,
     private evaluateService: EvaluateService,
     public friendlyName?: string,
   ) {}
-
- 
 
   public initialize(): Observable<REPLEnvironmentDescriptorDto> {
     return this.evaluateService.createSession(this.serverAddr).pipe(
@@ -65,9 +65,25 @@ export class Evaluator {
           const nowValue = now.valueOf();
           this._lastContact = nowValue;
           this._initializeAt = nowValue;
+          this.initialized$.next();
         }
       })
     );
+  }
+
+  public afterInitilized(): Observable<void> {
+    return new Observable<void>(obs => {
+      if (this.initialized) {
+        obs.next();
+        obs.complete();
+      }
+      else {
+        this.initialized$.subscribe(() => {
+          obs.next();
+          obs.complete();
+        });
+      }
+    });
   }
 
   public evaluate(exprString: string): Observable<PublicOutputObjectDto> {

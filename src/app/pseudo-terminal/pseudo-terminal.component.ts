@@ -636,4 +636,15 @@ export class PseudoTerminalComponent {
     // 打印状态下用户不可以输入
     this.updateScreen();
   }
+  
+  /** 保存状态 */
+  public store(): string {
+    return JSON.stringify(this.displayContent);
+  }
+
+  /** 恢复状态 */
+  public load(displayContentJSON: string): void {
+    this.displayContent = JSON.parse(displayContentJSON);
+    this.updateScreen();
+  }
 }
