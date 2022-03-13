@@ -21,7 +21,7 @@ type KeyValuePair = [string, string];
 })
 export class AppComponent {
 
-  defaultSessionServerAddr = 'http://173.82.245.214:3000';
+  defaultSessionServerAddr = 'https://evaluate.exploro.one';
   defaultSessionAlias = '默认会话';
   evaluators: Evaluator[] = [];
   isCreationWindowVisible = false;
