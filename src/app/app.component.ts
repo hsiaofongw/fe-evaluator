@@ -22,7 +22,7 @@ type KeyValuePair = [string, string];
 export class AppComponent {
 
   defaultSessionServerAddr = 'https://evaluate.exploro.one';
-  defaultSessionAlias = '默认会话';
+  defaultSessionAlias = '服务器会话';
   evaluators: Evaluator[] = [];
   isCreationWindowVisible = false;
   isCreationWindowValid = false;
@@ -55,6 +55,10 @@ export class AppComponent {
   ngAfterViewInit(): void {
     const defaultEvaluator = new Evaluator(this.defaultSessionServerAddr, this.evaluateService, this.defaultSessionAlias);
     this.evaluators.push(defaultEvaluator);
+    const localEvaluator = new Evaluator('http://127.0.0.1:3000', this.evaluateService, '本地会话');
+    this.evaluators.push(localEvaluator);
+    localEvaluator.initialize().subscribe();
+
     defaultEvaluator.initialize().subscribe((dto) => {
       if (dto.topicId) {
         
