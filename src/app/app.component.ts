@@ -15,7 +15,7 @@ type KeyValuePair = [string, string];
   styleUrls: ['./app.component.scss'],
 })
 export class AppComponent {
-  defaultSessionServerAddr = 'http://173.82.245.214:3000';
+  defaultSessionServerAddr = 'https://evaluate.exploro.one';
   defaultSessionAlias = '服务器会话';
   evaluators: Evaluator[] = [];
   pseudoTerminalStateStorage: string[] = [];
