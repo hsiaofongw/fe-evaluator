@@ -12,7 +12,10 @@ WORKDIR /app
 COPY ["package.json", "package-lock.json", "./"]
 
 # 安装包依赖
-RUN npm install --production
+RUN npm install
+
+# 复制源代码
+COPY . .
 
 # 让 Angular build 前端并且打包，默认会生成在 ./dist 下面
 RUN npm run build
@@ -24,4 +27,7 @@ FROM nginx:latest
 WORKDIR /usr/share/nginx/html
 
 # 复制上阶段 build 的产出到 webroot
-COPY --from=0 /app/dist .
+COPY --from=0 /app/dist/fe-evaluator .
+
+# 复制 NginX 配置文件
+COPY default.conf /etc/nginx/conf.d
